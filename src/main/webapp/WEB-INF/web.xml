@@ -1,0 +1,42 @@
+<web-app xmlns="http://java.sun.com/xml/ns/javaee"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://java.sun.com/xml/ns/javaee 
+  http://java.sun.com/xml/ns/javaee/web-app_3_0.xsd"
+  version="3.0">    
+  <!-- was version 2.5-->
+  <display-name>DAPDataONE</display-name>
+  <description>DAP DataONE Servlet</description>
+  
+  <servlet>
+    <servlet-name>DAPDataONE</servlet-name>
+    
+    <servlet-class>org.opendap.d1.DAPRestServlet</servlet-class>
+
+    <init-param>
+      <param-name>DebugOn</param-name>
+      <param-value>false</param-value>
+    </init-param>
+    
+    <!-- Use the DataONE Settings object, which uses Apache Commons Configuration -->
+    <!-- init-param>
+      <param-name>DAPD1ConfigFileName</param-name>
+      <param-value>dapd1.xml</param-value>
+    </init-param -->
+    
+    <!-- 0 (or 128) cause the sevlet to be loaded either on tomcat startup or 
+      when the servlet is deployed. Other values >= 0 control the ordering for 
+      several servlets; < 0 and tomcat can load it whenever it wants. jhrg 5/16/14 -->
+    <load-on-startup>0</load-on-startup>  
+
+  </servlet>
+  
+  <servlet-mapping>
+    <servlet-name>DAPDataONE</servlet-name>
+    
+    <!-- run the servlet using .../DAPD1Servlet/d1/mn/... where DAPD1Servlet comes from the
+      maven pom.xml file -->
+    
+    <url-pattern>/d1/mn/*</url-pattern>
+  </servlet-mapping>
+  
+</web-app>
