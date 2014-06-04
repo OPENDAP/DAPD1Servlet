@@ -65,6 +65,7 @@ import org.dataone.service.exceptions.NotFound;
 import org.dataone.service.exceptions.NotImplemented;
 import org.dataone.service.exceptions.ServiceFailure;
 import org.dataone.service.types.v1.Identifier;
+import org.dataone.service.types.v1.SystemMetadata;
 //import org.dataone.service.types.v1.AccessPolicy;
 import org.dataone.service.types.v1.Node;
 //import org.dataone.service.types.v1.Group;
@@ -195,10 +196,6 @@ public class DAPResourceHandler {
 			params = new Hashtable<String, String[]>();
 			initParams();
 
-			// create the handler for interacting with DAP
-			// Timer timer = new Timer();
-			// handler = new DAPHandler(timer);
-
 			try {
 				// get the resource
 				String resource = request.getPathInfo();
@@ -222,7 +219,7 @@ public class DAPResourceHandler {
 				boolean status = false;
 				if (resource != null) {
 					if (resource.startsWith(RESOURCE_NODE)) {
-						logDAP.debug("node response");
+						logDAP.debug("Using resource 'node'");
 						// node (aka getCapabilities) response. The method uses
 						// the output stream to serialize the result and throws an
 						// exception if there's a problem.
@@ -234,7 +231,7 @@ public class DAPResourceHandler {
 						if (httpVerb == GET) {
 							// after the command
 							extra = parseTrailing(resource, RESOURCE_META);
-							// FIXME getSystemMetadataObject(extra);
+							sendSysmetaResponse(extra);
 							status = true;
 						}
 					} else if (resource.startsWith(RESOURCE_OBJECTS)) {
@@ -266,8 +263,7 @@ public class DAPResourceHandler {
 						// handle checksum requests
 						if (httpVerb == GET) {
 							// after the command
-							extra = parseTrailing(resource,
-									Constants.RESOURCE_CHECKSUM);
+							extra = parseTrailing(resource, Constants.RESOURCE_CHECKSUM);
 							// FIXME checksum(extra);
 							status = true;
 						}
@@ -424,6 +420,21 @@ public class DAPResourceHandler {
 		TypeMarshaller.marshalTypeToOutputStream(n, response.getOutputStream());
 	}
 
+	private void sendSysmetaResponse(String extra) throws InvalidToken, NotAuthorized, 
+			NotImplemented, ServiceFailure, NotFound, JiBXException, IOException {
+		logDAP.debug("in sysmeta...");
+
+		Identifier pid = new Identifier();
+		pid.setValue(extra);
+		
+		SystemMetadata sm = DAPMNodeService.getInstance(request, db).getSystemMetadata(pid);
+
+		response.setContentType("text/xml");
+		response.setStatus(200);
+		
+		TypeMarshaller.marshalTypeToOutputStream(sm, response.getOutputStream());
+	}
+	
 	private void getObject(String extra) throws InvalidToken, ServiceFailure, NotFound, InsufficientResources, 
 			NotAuthorized, NotImplemented {
 		
@@ -438,12 +449,7 @@ public class DAPResourceHandler {
 			String formatId = db.getFormatId(extra);
 			String responseType = getResponseType(formatId);
 			response.setContentType(responseType);
-			/*
-			if (db.isDAPURL(extra))
-				response.setContentType("application/octet-stream");
-			else
-				response.setContentType("text/xml");
-			 */
+
 			response.setStatus(200);
 			
 			IOUtils.copyLarge(in, response.getOutputStream());

@@ -25,9 +25,11 @@ package org.opendap.d1;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigInteger;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.sql.SQLException;
 //import java.sql.SQLException;
 //import java.sql.SQLException;
 //import java.sql.SQLException;
@@ -65,6 +67,8 @@ import org.dataone.service.exceptions.SynchronizationFailed;
 import org.dataone.service.mn.tier1.v1.MNCore;
 import org.dataone.service.mn.tier1.v1.MNRead;
 
+import org.dataone.service.types.v1.AccessPolicy;
+import org.dataone.service.types.v1.AccessRule;
 import org.dataone.service.types.v1.Checksum;
 import org.dataone.service.types.v1.DescribeResponse;
 import org.dataone.service.types.v1.Event;
@@ -76,7 +80,9 @@ import org.dataone.service.types.v1.NodeState;
 import org.dataone.service.types.v1.NodeType;
 import org.dataone.service.types.v1.ObjectFormatIdentifier;
 import org.dataone.service.types.v1.ObjectList;
+import org.dataone.service.types.v1.Permission;
 import org.dataone.service.types.v1.Ping;
+import org.dataone.service.types.v1.ReplicationPolicy;
 import org.dataone.service.types.v1.Schedule;
 import org.dataone.service.types.v1.Service;
 import org.dataone.service.types.v1.Services;
@@ -309,15 +315,85 @@ public class DAPMNodeService implements MNCore, MNRead {
 		return null;
 	}
 
-	/* (non-Javadoc)
+	/**
+	 * Build a populated instance of the DataONE SystemMetadata object and
+	 * return it. This method makes some assumptions about values for many of
+	 * the fields of the object that are specific to DAP and the idea that
+	 * a DAP server is providing the values for the SDO and SMO.
+	 * 
+	 * @param pid The DataONE PID
+	 * @return an instance of SystemMetadata
 	 * @see org.dataone.service.mn.tier1.v1.MNRead#getSystemMetadata(org.dataone.service.types.v1.Identifier)
 	 */
-	// @Override
-	public SystemMetadata getSystemMetadata(Identifier arg0)
+	public SystemMetadata getSystemMetadata(Identifier pid)
 			throws InvalidToken, NotAuthorized, NotImplemented, ServiceFailure,
 			NotFound {
-		// TODO Auto-generated method stub
-		return null;
+		try {
+			SystemMetadata sm = new SystemMetadata();
+
+			sm.setIdentifier(pid);
+			
+			ObjectFormatIdentifier formatId = new ObjectFormatIdentifier();
+			formatId.setValue(db.getFormatId(pid.getValue()));
+			sm.setFormatId(formatId);
+
+			sm.setSize(new BigInteger("0"));	// FIXME Read from DB
+			
+			Checksum checksum = new Checksum();
+			checksum.setAlgorithm("SHA-1");		// FIXME
+			checksum.setValue("0x00000000");
+			sm.setChecksum(checksum);
+			
+			// Basic policies: The node is the 'submitter' and 'RightsHolder' and 
+			// can READ, WRITE and CHANGE_PERMISSION on the stuff. The 'public:' can READ.
+			// Note that 'Submitter' is optional while RightsHolder is required.
+			Subject submitter = new Subject();
+			submitter.setValue("urn:node:OPENDAP");
+			sm.setSubmitter(submitter);
+			
+			sm.setRightsHolder(submitter);
+			
+			// Everything from here down is optional
+			AccessRule submitterRule = new AccessRule();
+			submitterRule.addSubject(submitter);
+			submitterRule.addPermission(Permission.READ);
+			submitterRule.addPermission(Permission.WRITE);
+			submitterRule.addPermission(Permission.CHANGE_PERMISSION);
+			
+			Subject pub = new Subject();
+			pub.setValue("public:");
+			AccessRule publicRule = new AccessRule();
+			publicRule.addSubject(pub);
+			publicRule.addPermission(Permission.READ);
+			
+			AccessPolicy ap = new AccessPolicy();
+			ap.addAllow(submitterRule);
+			ap.addAllow(publicRule);
+			sm.setAccessPolicy(ap);
+			
+			ReplicationPolicy rp = new ReplicationPolicy();
+			rp.setReplicationAllowed(false);
+			sm.setReplicationPolicy(rp);
+			
+			Date date = db.getDateSysmetaModified(pid.getValue());
+			sm.setDateSysMetadataModified(date);
+			sm.setDateUploaded(date);
+			
+			NodeReference nr = new NodeReference();
+			nr.setValue("urn:node:OPENDAP");
+			sm.setOriginMemberNode(nr);
+			sm.setAuthoritativeMemberNode(nr);
+			
+			// There is a Replica object in the D1 classes and a matching field for
+			// the SystemMetadata object/response. I'm ignoring it because replication
+			// is not allowed by default for this servlet. 6/4/14
+			
+			return sm;
+		} catch (DAPDatabaseException e) {
+			throw new ServiceFailure("2162", e.getMessage());
+		} catch (SQLException e) {
+			throw new ServiceFailure("2162", e.getMessage());
+		}
 	}
 
 	/* (non-Javadoc)
