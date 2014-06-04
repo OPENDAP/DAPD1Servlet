@@ -197,22 +197,7 @@ public class DAPMNodeService implements MNCore, MNRead {
 
 		this.request = request;
 		this.db = db;
-		/*
-		try {
-		if (!db.isValid())
-			throw new DAPDatabaseException("Database invalid.");
-		} catch (SQLException e) {
-			throw new DAPDatabaseException("Database invalid: " + e.getMessage());
-		}
-		*/
-		/*
-		try {
-			Settings.augmentConfiguration(OPENDAP_PROPERTIES);
-		}
-		catch (ConfigurationException ce) {
-			logDAP.error("Failed to read the config file: " + OPENDAP_PROPERTIES);
-		}
-		*/
+
 		// set the Member Node certificate file location
 		CertificateManager.getInstance().setCertificateLocation(Settings.getConfiguration().getString("D1Client.certificate.file"));
 	}
@@ -340,15 +325,16 @@ public class DAPMNodeService implements MNCore, MNRead {
 			sm.setSize(new BigInteger("0"));	// FIXME Read from DB
 			
 			Checksum checksum = new Checksum();
-			checksum.setAlgorithm("SHA-1");		// FIXME
-			checksum.setValue("0x00000000");
+			checksum.setAlgorithm(Settings.getConfiguration().getString("org.opendap.d1.checksum"));
+			checksum.setValue("0x00000000");	// FIXME
 			sm.setChecksum(checksum);
 			
 			// Basic policies: The node is the 'submitter' and 'RightsHolder' and 
 			// can READ, WRITE and CHANGE_PERMISSION on the stuff. The 'public:' can READ.
 			// Note that 'Submitter' is optional while RightsHolder is required.
 			Subject submitter = new Subject();
-			submitter.setValue("urn:node:OPENDAP");
+			String nodeId = Settings.getConfiguration().getString("org.opendap.d1.nodeId");
+			submitter.setValue(nodeId);	// nodeId is also used as the origin/auth node below
 			sm.setSubmitter(submitter);
 			
 			sm.setRightsHolder(submitter);
@@ -361,7 +347,7 @@ public class DAPMNodeService implements MNCore, MNRead {
 			submitterRule.addPermission(Permission.CHANGE_PERMISSION);
 			
 			Subject pub = new Subject();
-			pub.setValue("public:");
+			pub.setValue(Settings.getConfiguration().getString("org.opendap.d1.subject")); // "public:"
 			AccessRule publicRule = new AccessRule();
 			publicRule.addSubject(pub);
 			publicRule.addPermission(Permission.READ);
@@ -380,7 +366,7 @@ public class DAPMNodeService implements MNCore, MNRead {
 			sm.setDateUploaded(date);
 			
 			NodeReference nr = new NodeReference();
-			nr.setValue("urn:node:OPENDAP");
+			nr.setValue(nodeId);	// read from the properties above
 			sm.setOriginMemberNode(nr);
 			sm.setAuthoritativeMemberNode(nr);
 			
