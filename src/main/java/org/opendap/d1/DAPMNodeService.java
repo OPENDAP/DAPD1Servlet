@@ -228,13 +228,7 @@ public class DAPMNodeService implements MNCore, MNRead {
 		// if the PID references an ORE document, we must build the ORE doc and 
 		// return it.
 		
-		// String dbName = Settings.getConfiguration().getString("org.opendap.d1.DatabaseName");
 		try {
-			/* DatasetsDatabase db = new DatasetsDatabase(dbName);
-			if (!db.isValid())
-				throw new DAPDatabaseException("The database is not valid (" + dbName + ").");
-			*/
-
 			InputStream in = null;
 			
 			// Anything other than an ORE doc must be DAP URL for this server.
@@ -322,11 +316,12 @@ public class DAPMNodeService implements MNCore, MNRead {
 			formatId.setValue(db.getFormatId(pid.getValue()));
 			sm.setFormatId(formatId);
 
-			sm.setSize(new BigInteger("0"));	// FIXME Read from DB
+			sm.setSize(new BigInteger(db.getSize(pid.getValue())));
 			
 			Checksum checksum = new Checksum();
-			checksum.setAlgorithm(Settings.getConfiguration().getString("org.opendap.d1.checksum"));
-			checksum.setValue("0x00000000");	// FIXME
+			// Looks fancy, but I only plan to support SHA-1. 6/4/14
+			checksum.setAlgorithm(db.getAlgorithm(pid.getValue()));
+			checksum.setValue(db.getChecksum(pid.getValue()));
 			sm.setChecksum(checksum);
 			
 			// Basic policies: The node is the 'submitter' and 'RightsHolder' and 
