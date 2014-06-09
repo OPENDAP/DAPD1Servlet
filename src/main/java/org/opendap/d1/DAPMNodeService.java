@@ -206,10 +206,47 @@ public class DAPMNodeService implements MNCore, MNRead {
 	 * @see org.dataone.service.mn.tier1.v1.MNRead#describe(org.dataone.service.types.v1.Identifier)
 	 */
 	// @Override
-	public DescribeResponse describe(Identifier arg0) throws InvalidToken,
+	public DescribeResponse describe(Identifier pid) throws InvalidToken,
 			NotAuthorized, NotImplemented, ServiceFailure, NotFound {
 		// TODO Auto-generated method stub
-		return null;
+
+		if (!db.isInMetadata(pid.getValue()))
+			throw new NotFound("1420", "The PID '" + pid.getValue() + "' was not found on this server.");
+		
+		/*
+		ObjectFormatIdentifier objectFormatID,
+        BigInteger content_length,
+        Date last_modified,
+        Checksum checksum,
+        BigInteger serialVersion
+        */
+		/* Ben did it this way in the metacat D1 server:
+		 // get system metadata and construct the describe response
+      	 SystemMetadata sysmeta = getSystemMetadata(session, pid);
+      	 DescribeResponse describeResponse = 
+      	 new DescribeResponse(sysmeta.getFormatId(), sysmeta.getSize(), 
+      			sysmeta.getDateSysMetadataModified(),
+      			sysmeta.getChecksum(), sysmeta.getSerialVersion());
+
+         return describeResponse;
+		 */
+		try {
+			ObjectFormatIdentifier format = new ObjectFormatIdentifier();
+			format.setValue(db.getFormatId(pid.getValue()));
+			
+			Checksum checksum = new Checksum();
+			// Looks fancy, but I only plan to support SHA-1. 6/4/14
+			checksum.setAlgorithm(db.getAlgorithm(pid.getValue()));
+			checksum.setValue(db.getChecksum(pid.getValue()));
+
+			Date date = db.getDateSysmetaModified(pid.getValue());
+			
+			return new DescribeResponse(format, new BigInteger(db.getSize(pid.getValue())), date, checksum, null);
+		} catch (SQLException e) {
+			throw new ServiceFailure("2162", e.getMessage());
+		} catch (DAPDatabaseException e) {
+			throw new ServiceFailure("2162", e.getMessage());
+		}
 	}
 
 	/**
@@ -227,6 +264,9 @@ public class DAPMNodeService implements MNCore, MNRead {
 		// access the DAP server and return the streamed object via the InputStream.
 		// if the PID references an ORE document, we must build the ORE doc and 
 		// return it.
+		
+		if (!db.isInMetadata(pid.getValue()))
+			throw new NotFound("1420", "The PID '" + pid.getValue() + "' was not found on this server.");
 		
 		try {
 			InputStream in = null;
@@ -276,10 +316,14 @@ public class DAPMNodeService implements MNCore, MNRead {
 	 * @see org.dataone.service.mn.tier1.v1.MNRead#getChecksum(org.dataone.service.types.v1.Identifier, java.lang.String)
 	 */
 	// @Override
-	public Checksum getChecksum(Identifier arg0, String arg1)
+	public Checksum getChecksum(Identifier pid, String arg1)
 			throws InvalidRequest, InvalidToken, NotAuthorized, NotImplemented,
 			ServiceFailure, NotFound {
-		// TODO Auto-generated method stub
+		// TODO Finish me!
+		
+		if (!db.isInMetadata(pid.getValue()))
+			throw new NotFound("1420", "The PID '" + pid.getValue() + "' was not found on this server.");
+		
 		return null;
 	}
 
@@ -287,10 +331,14 @@ public class DAPMNodeService implements MNCore, MNRead {
 	 * @see org.dataone.service.mn.tier1.v1.MNRead#getReplica(org.dataone.service.types.v1.Identifier)
 	 */
 	// @Override
-	public InputStream getReplica(Identifier arg0) throws InvalidToken,
+	public InputStream getReplica(Identifier pid) throws InvalidToken,
 			NotAuthorized, NotImplemented, ServiceFailure, NotFound,
 			InsufficientResources {
 		// TODO Auto-generated method stub
+		
+		if (!db.isInMetadata(pid.getValue()))
+			throw new NotFound("1420", "The PID '" + pid.getValue() + "' was not found on this server.");
+		
 		return null;
 	}
 
@@ -307,6 +355,10 @@ public class DAPMNodeService implements MNCore, MNRead {
 	public SystemMetadata getSystemMetadata(Identifier pid)
 			throws InvalidToken, NotAuthorized, NotImplemented, ServiceFailure,
 			NotFound {
+		
+		if (!db.isInMetadata(pid.getValue()))
+			throw new NotFound("1420", "The PID '" + pid.getValue() + "' was not found on this server.");
+		
 		try {
 			SystemMetadata sm = new SystemMetadata();
 

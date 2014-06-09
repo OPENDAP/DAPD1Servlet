@@ -32,7 +32,6 @@ import javax.servlet.http.HttpServletResponse;
 import org.apache.log4j.Logger;
 import org.opendap.d1.DatasetsDatabase.DAPDatabaseException;
 
-
 /**
  * DAP implementation of Earthgrid (Ecogrid) REST API as a servlet. For each request the
  * REST servlet initializes a DAPResourceHandler object that then handles the request
@@ -125,6 +124,14 @@ public class DAPRestServlet extends HttpServlet {
         
         resourceHandler = createHandler(request, response);
         resourceHandler.handle(DAPResourceHandler.GET);
+    }
+
+    /** Handle "HEAD" method requests from HTTP clients */
+    @Override
+    protected void doHead(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+        System.out.println("HTTP Verb: HEAD");
+        resourceHandler = createHandler(request, response);
+        resourceHandler.handle(DAPResourceHandler.HEAD);
     }
 
     /** 

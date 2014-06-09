@@ -64,6 +64,7 @@ import org.dataone.service.exceptions.NotAuthorized;
 import org.dataone.service.exceptions.NotFound;
 import org.dataone.service.exceptions.NotImplemented;
 import org.dataone.service.exceptions.ServiceFailure;
+import org.dataone.service.types.v1.DescribeResponse;
 import org.dataone.service.types.v1.Identifier;
 import org.dataone.service.types.v1.SystemMetadata;
 //import org.dataone.service.types.v1.AccessPolicy;
@@ -77,6 +78,7 @@ import org.dataone.service.types.v1.Session;
 //import org.dataone.service.types.v1.SubjectInfo;
 //import org.dataone.service.types.v1.SystemMetadata;
 import org.dataone.service.util.Constants;
+import org.dataone.service.util.DateTimeMarshaller;
 //import org.dataone.service.util.ExceptionHandler;
 import org.dataone.service.util.TypeMarshaller;
 
@@ -248,7 +250,7 @@ public class DAPResourceHandler {
 							getObject(extra);
 							status = true;
 						} else if (httpVerb == HEAD) {
-							// FIXME describeObject(extra);
+							sendDescribeObject(extra);
 							status = true;
 						}
 					} else if (resource.startsWith(RESOURCE_LOG)) {
@@ -308,7 +310,7 @@ public class DAPResourceHandler {
 					}
 
 					if (!status) {
-						throw new ServiceFailure("2010", "Unknown error, status = " + status);
+						throw new ServiceFailure("2162", "Unknown error, status = " + status);
 					}
 				} // if (resource != null)
 			} catch (BaseException be) {
@@ -329,7 +331,7 @@ public class DAPResourceHandler {
 				} catch (IOException ioe) {
 					logDAP.error("Could not get output stream from response", ioe);
 				}
-				ServiceFailure se = new ServiceFailure("0000", e.getMessage());
+				ServiceFailure se = new ServiceFailure("2162", e.getMessage());
 				serializeException(se, out);
 			}
 
@@ -476,6 +478,49 @@ public class DAPResourceHandler {
 			return "text/xml";
 		else
 			return "text/plain";
+	}
+
+	private void sendDescribeObject(String extra) throws InvalidToken, NotAuthorized, NotImplemented, ServiceFailure, 
+			NotFound, JiBXException, IOException {
+		logDAP.debug("in describe...");
+	       
+        response.setContentType("text/xml");
+
+        Identifier pid = new Identifier();
+        pid.setValue(extra);
+
+        DescribeResponse dr = null;
+        try {
+        	dr = DAPMNodeService.getInstance(request, db).describe(pid);
+        } catch (BaseException e) {
+        	response.setStatus(e.getCode());
+        	response.addHeader("DataONE-Exception-Name", e.getClass().getName());
+            response.addHeader("DataONE-Exception-DetailCode", e.getDetail_code());
+            response.addHeader("DataONE-Exception-Description", e.getDescription());
+            response.addHeader("DataONE-Exception-PID", pid.getValue());
+            return;
+		}
+        
+        response.setStatus(200);
+        
+        //response.addHeader("pid", pid);
+        response.addHeader("DataONE-Checksum", dr.getDataONE_Checksum().getAlgorithm() + "," + dr.getDataONE_Checksum().getValue());
+        response.addHeader("Content-Length", dr.getContent_Length() + "");
+        response.addHeader("Last-Modified", DateTimeMarshaller.serializeDateToUTC(dr.getLast_Modified()));
+        response.addHeader("DataONE-ObjectFormat", dr.getDataONE_ObjectFormatIdentifier().getValue());
+        // TODO Is this required for a MN?
+        // response.addHeader("DataONE-SerialVersion", dr.getSerialVersion().toString());
+
+        /* My old code
+		// look at public DescribeResponse describe(Identifier pid) in DAPMNodeService
+		Identifier pid = new Identifier();
+		pid.setValue(extra);
+		DescribeResponse dr = DAPMNodeService.getInstance(request, db).describe(pid);
+
+		response.setContentType("text/xml");
+		response.setStatus(200);
+		TypeMarshaller.marshalTypeToOutputStream(dr, response.getOutputStream());
+		*/
 	}
 
 	private String parseTrailing(String resource, String token) {
