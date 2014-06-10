@@ -110,13 +110,13 @@ public class DAPRestServlet extends HttpServlet {
     }
 
     /** 
-     * @brief Handle "GET" method requests from HTTP clients
+     * Handle "GET" method requests from HTTP clients
      * 
      * This should handle the case where the client sent a HEAD request (look
      * for a NoBodyResponse as the class of the 'response' parameter).
      * 
      * This should set ContentLength using response.setContentLength().
-     * If possible, set LMT using 
+     * If possible, set LMT using ...
      */
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
@@ -126,28 +126,27 @@ public class DAPRestServlet extends HttpServlet {
         resourceHandler.handle(DAPResourceHandler.GET);
     }
 
-    /** Handle "HEAD" method requests from HTTP clients */
+    /** 
+     * Handle "HEAD" method requests from HTTP clients 
+     */
     @Override
     protected void doHead(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-        System.out.println("HTTP Verb: HEAD");
+    	logDAP.debug("HTTP Verb: HEAD");
+    	 
         resourceHandler = createHandler(request, response);
         resourceHandler.handle(DAPResourceHandler.HEAD);
     }
 
     /** 
-     * @brief Handle "POST" method requests from HTTP clients 
-     * 
-     * This method does not have to check for a NoBodyResponse (HEAD requests
-     * are always processed by doGet()).
+     * Handle "POST" method requests from HTTP clients 
      */
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-    	super.doPost(request, response);
-    	/*
-    	System.out.println("HTTP Verb: POST");
+    	logDAP.debug("HTTP Verb: POST");
+   	 
         resourceHandler = createHandler(request, response);
         resourceHandler.handle(DAPResourceHandler.POST);
-        */
+    	// super.doPost(request, response);
     }
 
 }

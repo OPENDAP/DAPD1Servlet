@@ -27,7 +27,6 @@ package org.opendap.d1;
 //import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-//import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.security.PrivateKey;
@@ -36,25 +35,16 @@ import java.sql.SQLException;
 import java.util.Date;
 import java.util.Enumeration;
 import java.util.Hashtable;
-//import java.util.Iterator;
-//import java.util.List;
-//import java.util.Map;
-//import java.util.Timer;
 
 import javax.servlet.ServletContext;
-//import javax.servlet.ServletOutputStream;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-//import javax.xml.parsers.ParserConfigurationException;
 
 import org.apache.commons.configuration.ConfigurationException;
-//import org.apache.commons.fileupload.FileUploadException;
 import org.apache.commons.io.IOUtils;
 import org.apache.log4j.Logger;
 import org.dataone.client.auth.CertificateManager;
 import org.dataone.configuration.Settings;
-//import org.dataone.mimemultipart.MultipartRequest;
-//import org.dataone.mimemultipart.MultipartRequestResolver;
 import org.dataone.portal.PortalCertificateManager;
 import org.dataone.service.exceptions.BaseException;
 import org.dataone.service.exceptions.InsufficientResources;
@@ -64,29 +54,38 @@ import org.dataone.service.exceptions.NotAuthorized;
 import org.dataone.service.exceptions.NotFound;
 import org.dataone.service.exceptions.NotImplemented;
 import org.dataone.service.exceptions.ServiceFailure;
+import org.dataone.service.types.v1.Checksum;
 import org.dataone.service.types.v1.DescribeResponse;
 import org.dataone.service.types.v1.Identifier;
-import org.dataone.service.types.v1.SystemMetadata;
-//import org.dataone.service.types.v1.AccessPolicy;
 import org.dataone.service.types.v1.Node;
+import org.dataone.service.types.v1.Session;
+import org.dataone.service.types.v1.SystemMetadata;
+import org.dataone.service.util.Constants;
+import org.dataone.service.util.DateTimeMarshaller;
+import org.dataone.service.util.TypeMarshaller;
+import org.jibx.runtime.JiBXException;
+import org.opendap.d1.DatasetsDatabase.DAPDatabaseException;
+import org.opendap.d1.DatasetsDatabase.DatasetsDatabase;
+//import java.io.InputStream;
+//import java.util.Iterator;
+//import java.util.List;
+//import java.util.Map;
+//import java.util.Timer;
+//import javax.servlet.ServletOutputStream;
+//import javax.xml.parsers.ParserConfigurationException;
+//import org.apache.commons.fileupload.FileUploadException;
+//import org.dataone.mimemultipart.MultipartRequest;
+//import org.dataone.mimemultipart.MultipartRequestResolver;
+//import org.dataone.service.types.v1.AccessPolicy;
 //import org.dataone.service.types.v1.Group;
 //import org.dataone.service.types.v1.Person;
 //import org.dataone.service.types.v1.Replica;
 //import org.dataone.service.types.v1.ReplicationPolicy;
-import org.dataone.service.types.v1.Session;
 //import org.dataone.service.types.v1.Subject;
 //import org.dataone.service.types.v1.SubjectInfo;
 //import org.dataone.service.types.v1.SystemMetadata;
-import org.dataone.service.util.Constants;
-import org.dataone.service.util.DateTimeMarshaller;
 //import org.dataone.service.util.ExceptionHandler;
-import org.dataone.service.util.TypeMarshaller;
-
-import org.jibx.runtime.JiBXException;
-
-import org.opendap.d1.DatasetsDatabase.DAPDatabaseException;
 //import org.xml.sax.SAXException;
-import org.opendap.d1.DatasetsDatabase.DatasetsDatabase;
 
 /**
  * @brief Handle GET, POST and HEAD requests for the DAP/D1 servlet.
@@ -96,15 +95,12 @@ import org.opendap.d1.DatasetsDatabase.DatasetsDatabase;
  * MNCore -- Partly 
  * ping() - GET /d1/mn/monitor/ping (done)
  * log() - GET /d1/mn/log 
- * **getObjectStatistics() - GET /d1/mn/monitor/object 
- * **getOperationsStatistics - GET /d1/mn/monitor/event 
- * **getStatus - GET /d1/mn/monitor/status
  * getCapabilities() - GET /d1/mn/ and /d1/mn/node (done)
  * 
- * MNRead -- Not yet 
- * get() - GET /d1/mn/object/PID 
- * getSystemMetadata() - GET /d1/mn/meta/PID 
- * describe() - HEAD /d1/mn/object/PID 
+ * MNRead -- Partly 
+ * get() - GET /d1/mn/object/PID (done)
+ * getSystemMetadata() - GET /d1/mn/meta/PID (done)
+ * describe() - HEAD /d1/mn/object/PID (done)
  * getChecksum() - GET /d1/mn/checksum/PID 
  * listObjects() - GET /d1/mn/object
  * synchronizationFailed() - POST /d1/mn/error
@@ -123,12 +119,15 @@ public class DAPResourceHandler {
 
 	// API Resources
 	private static final String RESOURCE_OBJECTS = "object";
+	private static final String RESOURCE_CHECKSUM = "checksum";
+	
 	private static final String RESOURCE_META = "meta";
 	private static final String RESOURCE_LOG = "log";
 
 	// MN-specific API Resources
 	private static final String RESOURCE_MONITOR = "monitor";
 	private static final String RESOURCE_NODE = "node";
+	private static final String RESOURCE_ERROR = "error";
 
 	private static String OPENDAP_PROPERTIES = "opendap.properties";
 	
@@ -266,7 +265,8 @@ public class DAPResourceHandler {
 						if (httpVerb == GET) {
 							// after the command
 							extra = parseTrailing(resource, Constants.RESOURCE_CHECKSUM);
-							// FIXME checksum(extra);
+							String algorithm = "SHA-1";
+							sendChecksum(extra, algorithm);
 							status = true;
 						}
 					} else if (resource.startsWith(RESOURCE_MONITOR)) {
@@ -297,14 +297,10 @@ public class DAPResourceHandler {
 								}
 
 								status = true;
-
 							} 
-							else {
-								// health monitoring calls
-								// FIXME status = monitor(extra);
-								status = true;
-							}
 						}
+					} else if (resource.startsWith(RESOURCE_ERROR)) {
+						// TODO Handle the POST /error thing
 					} else {
 						throw new InvalidRequest("0000", "No resource matched for " + resource);
 					}
@@ -509,7 +505,7 @@ public class DAPResourceHandler {
         response.addHeader("Last-Modified", DateTimeMarshaller.serializeDateToUTC(dr.getLast_Modified()));
         response.addHeader("DataONE-ObjectFormat", dr.getDataONE_ObjectFormatIdentifier().getValue());
         // TODO Is this required for a MN?
-        // response.addHeader("DataONE-SerialVersion", dr.getSerialVersion().toString());
+        response.addHeader("DataONE-SerialVersion", dr.getSerialVersion().toString());
 
         /* My old code
 		// look at public DescribeResponse describe(Identifier pid) in DAPMNodeService
@@ -521,6 +517,21 @@ public class DAPResourceHandler {
 		response.setStatus(200);
 		TypeMarshaller.marshalTypeToOutputStream(dr, response.getOutputStream());
 		*/
+	}
+
+	private void sendChecksum(String extra, String algorithm) throws InvalidRequest, InvalidToken, NotAuthorized,
+			NotImplemented, ServiceFailure, NotFound, JiBXException, IOException {
+		logDAP.debug("in checksum...");
+
+		Identifier pid = new Identifier();
+		pid.setValue(extra);
+		
+		Checksum c = DAPMNodeService.getInstance(request, db).getChecksum(pid, algorithm);
+
+		response.setContentType("text/xml");
+		response.setStatus(200);
+		
+		TypeMarshaller.marshalTypeToOutputStream(c, response.getOutputStream());
 	}
 
 	private String parseTrailing(String resource, String token) {

@@ -30,29 +30,22 @@ import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.sql.SQLException;
-//import java.sql.SQLException;
-//import java.sql.SQLException;
-//import java.sql.SQLException;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Vector;
-//import java.util.Hashtable;
 
 import javax.servlet.http.HttpServletRequest;
 
-//import org.apache.commons.configuration.ConfigurationException;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.log4j.Logger;
-
 import org.dataone.client.auth.CertificateManager;
 import org.dataone.configuration.Settings;
-
 import org.dataone.ore.ResourceMapFactory;
 import org.dataone.service.exceptions.BaseException;
 import org.dataone.service.exceptions.InsufficientResources;
@@ -63,10 +56,8 @@ import org.dataone.service.exceptions.NotFound;
 import org.dataone.service.exceptions.NotImplemented;
 import org.dataone.service.exceptions.ServiceFailure;
 import org.dataone.service.exceptions.SynchronizationFailed;
-
 import org.dataone.service.mn.tier1.v1.MNCore;
 import org.dataone.service.mn.tier1.v1.MNRead;
-
 import org.dataone.service.types.v1.AccessPolicy;
 import org.dataone.service.types.v1.AccessRule;
 import org.dataone.service.types.v1.Checksum;
@@ -92,8 +83,13 @@ import org.dataone.service.types.v1.Synchronization;
 import org.dataone.service.types.v1.SystemMetadata;
 import org.dspace.foresite.ResourceMap;
 import org.opendap.d1.DatasetsDatabase.DAPDatabaseException;
-// import org.opendap.d1.DatasetsDatabase.DAPDatabaseException;
 import org.opendap.d1.DatasetsDatabase.DatasetsDatabase;
+//import java.sql.SQLException;
+//import java.sql.SQLException;
+//import java.sql.SQLException;
+//import java.util.Hashtable;
+//import org.apache.commons.configuration.ConfigurationException;
+// import org.opendap.d1.DatasetsDatabase.DAPDatabaseException;
 
 //import edu.ucsb.nceas.metacat.MetacatHandler;
 //import edu.ucsb.nceas.metacat.dataone.D1NodeService;
@@ -208,7 +204,6 @@ public class DAPMNodeService implements MNCore, MNRead {
 	// @Override
 	public DescribeResponse describe(Identifier pid) throws InvalidToken,
 			NotAuthorized, NotImplemented, ServiceFailure, NotFound {
-		// TODO Auto-generated method stub
 
 		if (!db.isInMetadata(pid.getValue()))
 			throw new NotFound("1420", "The PID '" + pid.getValue() + "' was not found on this server.");
@@ -241,7 +236,9 @@ public class DAPMNodeService implements MNCore, MNRead {
 
 			Date date = db.getDateSysmetaModified(pid.getValue());
 			
-			return new DescribeResponse(format, new BigInteger(db.getSize(pid.getValue())), date, checksum, null);
+			BigInteger serialNumber = db.getSerialNumber(pid.getValue());
+			
+			return new DescribeResponse(format, new BigInteger(db.getSize(pid.getValue())), date, checksum, serialNumber);
 		} catch (SQLException e) {
 			throw new ServiceFailure("2162", e.getMessage());
 		} catch (DAPDatabaseException e) {
@@ -312,19 +309,38 @@ public class DAPMNodeService implements MNCore, MNRead {
 		}
 	}
 
-	/* (non-Javadoc)
+	/**
+	 * Lookup the checksum for the given PID. If the algorithm used does not
+	 * match the one given in the arg list, throw an InvalidRequest.
+	 * 
+	 * @param pid D1 PID
+	 * @param algorithm The checksum to use - must be SHA-1.
+	 *  
 	 * @see org.dataone.service.mn.tier1.v1.MNRead#getChecksum(org.dataone.service.types.v1.Identifier, java.lang.String)
 	 */
 	// @Override
-	public Checksum getChecksum(Identifier pid, String arg1)
+	public Checksum getChecksum(Identifier pid, String algorithm)
 			throws InvalidRequest, InvalidToken, NotAuthorized, NotImplemented,
 			ServiceFailure, NotFound {
-		// TODO Finish me!
 		
 		if (!db.isInMetadata(pid.getValue()))
 			throw new NotFound("1420", "The PID '" + pid.getValue() + "' was not found on this server.");
 		
-		return null;
+		Checksum checksum = new Checksum();
+		// Looks fancy, but I only plan to support SHA-1. 6/4/14
+		try {
+			String algUsed = db.getAlgorithm(pid.getValue());
+			if (!algUsed.equalsIgnoreCase(algorithm))
+				throw new InvalidRequest("1402", "This DataONE Member Node only supports the SHA-1 checksum algorithm");
+			checksum.setAlgorithm(algUsed);
+			checksum.setValue(db.getChecksum(pid.getValue()));
+		} catch (SQLException e) {
+			throw new ServiceFailure("1410", e.getMessage());
+		} catch (DAPDatabaseException e) {
+			throw new ServiceFailure("1410", e.getMessage());
+		}
+
+		return checksum;
 	}
 
 	/* (non-Javadoc)
@@ -348,6 +364,8 @@ public class DAPMNodeService implements MNCore, MNRead {
 	 * the fields of the object that are specific to DAP and the idea that
 	 * a DAP server is providing the values for the SDO and SMO.
 	 * 
+	 * TODO Replace the set of database calls with one call.
+	 * 
 	 * @param pid The DataONE PID
 	 * @return an instance of SystemMetadata
 	 * @see org.dataone.service.mn.tier1.v1.MNRead#getSystemMetadata(org.dataone.service.types.v1.Identifier)
@@ -368,6 +386,8 @@ public class DAPMNodeService implements MNCore, MNRead {
 			formatId.setValue(db.getFormatId(pid.getValue()));
 			sm.setFormatId(formatId);
 
+			sm.setSerialVersion(db.getSerialNumber(pid.getValue()));
+			
 			sm.setSize(new BigInteger(db.getSize(pid.getValue())));
 			
 			Checksum checksum = new Checksum();
