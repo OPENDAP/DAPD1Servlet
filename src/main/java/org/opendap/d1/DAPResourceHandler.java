@@ -105,10 +105,11 @@ public class DAPResourceHandler {
 	private static final String RESOURCE_META = "meta";
 	private static final String RESOURCE_LOG = "log";
 	
-	// MN-specific API Resources
 	private static final String RESOURCE_MONITOR = "monitor";
 	private static final String RESOURCE_NODE = "node";
 	private static final String RESOURCE_ERROR = "error";
+	
+	private static final String API_VERSION = "v1/";	// needs the trailing slash
 
 	// The default number of responses for the listObjects() call
 	private static int DEFAULT_COUNT = 1000;
@@ -185,8 +186,7 @@ public class DAPResourceHandler {
 				// get the resource
 				String resource = request.getPathInfo();
 
-				logDAP.debug("handling verb " + httpVerb
-						+ " request with resource '" + resource + "'");
+				logDAP.debug("handling verb " + httpVerb + " request with resource '" + resource + "'");
 
 				// In the web.xml for the DAPRestServlet, I set the url pattern
 				// like this: <url-pattern>/d1/mn/*</url-pattern> which means
@@ -195,7 +195,7 @@ public class DAPResourceHandler {
 				// that value here. It could be read from the config file using
 				// the org.opendap.d1.mnCore.serviceVersion and mnRead...
 				// properties. jhrg 5/20/14
-				resource = resource.substring(resource.indexOf("v1/") + 3);
+				resource = parseTrailing(resource, API_VERSION);
 
 				logDAP.debug("processed resource: '" + resource + "'");
 
@@ -250,6 +250,7 @@ public class DAPResourceHandler {
 					if (httpVerb == GET) {
 						// FIXME getLog();
 						status = true;
+						throw new NotImplemented("1461", "log is not yet supported");
 					}
 				} else if (resource.startsWith(RESOURCE_CHECKSUM)) {
 					logDAP.debug("Using resource '" + RESOURCE_CHECKSUM + "'");
@@ -304,6 +305,7 @@ public class DAPResourceHandler {
 				} else if (resource.startsWith(RESOURCE_ERROR)) {
 					// TODO Handle the POST /error thing
 					status = true;
+					throw new NotImplemented("2160", "error is not yet supported");
 				} else {
 					throw new InvalidRequest("0000", "No resource matched for " + resource);
 				}
