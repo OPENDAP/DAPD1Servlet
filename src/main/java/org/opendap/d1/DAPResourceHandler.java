@@ -22,9 +22,6 @@
 
 package org.opendap.d1;
 
-//import java.io.File;
-//import java.io.FileInputStream;
-//import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -42,6 +39,7 @@ import javax.servlet.http.HttpServletResponse;
 
 import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang.time.DateUtils;
 import org.apache.log4j.Logger;
 import org.dataone.client.auth.CertificateManager;
 import org.dataone.configuration.Settings;
@@ -58,34 +56,15 @@ import org.dataone.service.types.v1.Checksum;
 import org.dataone.service.types.v1.DescribeResponse;
 import org.dataone.service.types.v1.Identifier;
 import org.dataone.service.types.v1.Node;
+import org.dataone.service.types.v1.ObjectFormatIdentifier;
+import org.dataone.service.types.v1.ObjectList;
 import org.dataone.service.types.v1.Session;
 import org.dataone.service.types.v1.SystemMetadata;
-import org.dataone.service.util.Constants;
 import org.dataone.service.util.DateTimeMarshaller;
 import org.dataone.service.util.TypeMarshaller;
 import org.jibx.runtime.JiBXException;
 import org.opendap.d1.DatasetsDatabase.DAPDatabaseException;
 import org.opendap.d1.DatasetsDatabase.DatasetsDatabase;
-//import java.io.InputStream;
-//import java.util.Iterator;
-//import java.util.List;
-//import java.util.Map;
-//import java.util.Timer;
-//import javax.servlet.ServletOutputStream;
-//import javax.xml.parsers.ParserConfigurationException;
-//import org.apache.commons.fileupload.FileUploadException;
-//import org.dataone.mimemultipart.MultipartRequest;
-//import org.dataone.mimemultipart.MultipartRequestResolver;
-//import org.dataone.service.types.v1.AccessPolicy;
-//import org.dataone.service.types.v1.Group;
-//import org.dataone.service.types.v1.Person;
-//import org.dataone.service.types.v1.Replica;
-//import org.dataone.service.types.v1.ReplicationPolicy;
-//import org.dataone.service.types.v1.Subject;
-//import org.dataone.service.types.v1.SubjectInfo;
-//import org.dataone.service.types.v1.SystemMetadata;
-//import org.dataone.service.util.ExceptionHandler;
-//import org.xml.sax.SAXException;
 
 /**
  * @brief Handle GET, POST and HEAD requests for the DAP/D1 servlet.
@@ -100,8 +79,9 @@ import org.opendap.d1.DatasetsDatabase.DatasetsDatabase;
  * MNRead -- Partly 
  * get() - GET /d1/mn/object/PID (done)
  * getSystemMetadata() - GET /d1/mn/meta/PID (done)
+ * getReplica() - GET /replica/PID (done)
  * describe() - HEAD /d1/mn/object/PID (done)
- * getChecksum() - GET /d1/mn/checksum/PID 
+ * getChecksum() - GET /d1/mn/checksum/PID (done)
  * listObjects() - GET /d1/mn/object
  * synchronizationFailed() - POST /d1/mn/error
  * 
@@ -120,15 +100,19 @@ public class DAPResourceHandler {
 	// API Resources
 	private static final String RESOURCE_OBJECTS = "object";
 	private static final String RESOURCE_CHECKSUM = "checksum";
+	private static final String RESOURCE_REPLICA = "replica";
 	
 	private static final String RESOURCE_META = "meta";
 	private static final String RESOURCE_LOG = "log";
-
+	
 	// MN-specific API Resources
 	private static final String RESOURCE_MONITOR = "monitor";
 	private static final String RESOURCE_NODE = "node";
 	private static final String RESOURCE_ERROR = "error";
 
+	// The default number of responses for the listObjects() call
+	private static int DEFAULT_COUNT = 1000;
+	
 	private static String OPENDAP_PROPERTIES = "opendap.properties";
 	
 	private ServletContext servletContext;
@@ -183,12 +167,12 @@ public class DAPResourceHandler {
 	}
 
 	/**
-	 * This function is called from REST API servlet and handles each request
+	 * This function is called from the REST API servlet and handles each request
 	 * 
-	 * @param httpVerb (GET, POST)
+	 * @param httpVerb (GET, HEAD, POST)
 	 */
 	public void handle(byte httpVerb) {
-		
+
 		try {
 			// Set the Session member; null indicates no session info
 			// FIXME getSession();
@@ -201,114 +185,131 @@ public class DAPResourceHandler {
 				// get the resource
 				String resource = request.getPathInfo();
 
-				logDAP.debug("handling verb " + httpVerb + " request with resource '" + resource + "'");
+				logDAP.debug("handling verb " + httpVerb
+						+ " request with resource '" + resource + "'");
 
 				// In the web.xml for the DAPRestServlet, I set the url pattern
-				// like this: <url-pattern>/d1/mn/*</url-pattern> which means that
-				// the leading '/d1/mn/' is removed by the servlet container. jhrg 5/20/14
+				// like this: <url-pattern>/d1/mn/*</url-pattern> which means
+				// that
+				// the leading '/d1/mn/' is removed by the servlet container.
+				// jhrg 5/20/14
 				resource = resource.substring(resource.indexOf("/") + 1);
 
 				logDAP.debug("processed resource: '" + resource + "'");
 
 				// default to node info
-				if (resource.equals("")) {
+				if (resource == null || resource.equals("")) {
 					resource = RESOURCE_NODE;
 				}
 
 				// get the rest of the path info
 				String extra = null;
 				boolean status = false;
-				if (resource != null) {
-					if (resource.startsWith(RESOURCE_NODE)) {
-						logDAP.debug("Using resource 'node'");
-						// node (aka getCapabilities) response. The method uses
-						// the output stream to serialize the result and throws an
-						// exception if there's a problem.
-						sendNodeResponse();
-						status = true;
-					} else if (resource.startsWith(RESOURCE_META)) {
-						logDAP.debug("Using resource 'meta'");
-						// get
-						if (httpVerb == GET) {
-							// after the command
-							extra = parseTrailing(resource, RESOURCE_META);
-							sendSysmetaResponse(extra);
-							status = true;
-						}
-					} else if (resource.startsWith(RESOURCE_OBJECTS)) {
-						// This is the get() call which returns SDOs and SMOs
-						// or the describe() call for the same depending on the
-						// HTTP verb (GET or HEAD)
-						logDAP.debug("Using resource 'object'");
+
+				if (resource.startsWith(RESOURCE_NODE)) {
+					logDAP.debug("Using resource '" + RESOURCE_NODE + "'");
+					// node (aka getCapabilities) response. The method uses
+					// the output stream to serialize the result and throws an
+					// exception if there's a problem.
+					sendNodeResponse();
+					status = true;
+				} else if (resource.startsWith(RESOURCE_META)) {
+					logDAP.debug("Using resource '" + RESOURCE_META + "'");
+					// get
+					if (httpVerb == GET) {
 						// after the command
-						extra = parseTrailing(resource, RESOURCE_OBJECTS);
-						logDAP.debug("objectId: " + extra);
-						logDAP.debug("verb:" + httpVerb);
+						extra = parseTrailing(resource, RESOURCE_META);
+						sendSysmetaResponse(extra);
+						status = true;
+					}
+				} else if (resource.startsWith(RESOURCE_OBJECTS)) {
+					// This is the get() call which returns SDOs and SMOs
+					// or the describe() call for the same depending on the
+					// HTTP verb (GET or HEAD)
+					logDAP.debug("Using resource '" + RESOURCE_OBJECTS + "'");
+					// after the command
+					extra = parseTrailing(resource, RESOURCE_OBJECTS);
+					logDAP.debug("objectId: " + extra);
+					logDAP.debug("verb:" + httpVerb);
 
-						if (httpVerb == GET) {
-							getObject(extra);
-							status = true;
-						} else if (httpVerb == HEAD) {
-							sendDescribeObject(extra);
-							status = true;
-						}
-					} else if (resource.startsWith(RESOURCE_LOG)) {
-						logDAP.debug("Using resource 'log'");
-						// handle log events
-						if (httpVerb == GET) {
-							// FIXME getLog();
-							status = true;
-						}
-					} else if (resource.startsWith(Constants.RESOURCE_CHECKSUM)) {
-						logDAP.debug("Using resource 'checksum'");
-						// handle checksum requests
-						if (httpVerb == GET) {
-							// after the command
-							extra = parseTrailing(resource, Constants.RESOURCE_CHECKSUM);
-							String algorithm = "SHA-1";
-							sendChecksum(extra, algorithm);
-							status = true;
-						}
-					} else if (resource.startsWith(RESOURCE_MONITOR)) {
-						logDAP.debug("processing monitor request");
-						// there are various parts to monitoring
-						if (httpVerb == GET) {
-							// after the command
-							extra = parseTrailing(resource, RESOURCE_MONITOR);
-
-							// ping
-							if (extra.toLowerCase().equals("ping")) {
-								logDAP.debug("processing ping request");
-
-								Date result = DAPMNodeService.getInstance(request, db).ping();
-								if (result != null) {
-									logDAP.debug("processing ping result: " + result.toString());
-
-									response.setDateHeader("Date", result.getTime());
-									response.setStatus(200);
-
-									response.getWriter().println(result.toString());
-								} 
-								else {
-									logDAP.debug("processing ping result: null");
-									response.setStatus(400);
-
-									response.getWriter().println("No response from the underlying DAP server.");
-								}
-
-								status = true;
-							} 
-						}
-					} else if (resource.startsWith(RESOURCE_ERROR)) {
-						// TODO Handle the POST /error thing
-					} else {
-						throw new InvalidRequest("0000", "No resource matched for " + resource);
+					if (httpVerb == GET) {
+						if (extra == null || extra.isEmpty())
+							sendListObjects(params);
+						else
+							sendObject(extra);
+						status = true;
+					} else if (httpVerb == HEAD) {
+						sendDescribeObject(extra);
+						status = true;
+					}
+				} else if (resource.startsWith(RESOURCE_LOG)) {
+					logDAP.debug("Using resource '" + RESOURCE_LOG + "'");
+					// handle log events
+					if (httpVerb == GET) {
+						// FIXME getLog();
+						status = true;
+					}
+				} else if (resource.startsWith(RESOURCE_CHECKSUM)) {
+					logDAP.debug("Using resource '" + RESOURCE_CHECKSUM + "'");
+					// handle checksum requests
+					if (httpVerb == GET) {
+						// after the command
+						extra = parseTrailing(resource, RESOURCE_CHECKSUM);
+						String algorithm = "SHA-1";
+						sendChecksum(extra, algorithm);
+						status = true;
+					}
+				} else if (resource.startsWith(RESOURCE_REPLICA)) {
+					logDAP.debug("Using resource '" + RESOURCE_REPLICA + "'");
+					// handle replica requests
+					if (httpVerb == GET) {
+						// after the command
+						extra = parseTrailing(resource, RESOURCE_REPLICA);
+						sendReplica(extra);
+						status = true;
 					}
 
-					if (!status) {
-						throw new ServiceFailure("2162", "Unknown error, status = " + status);
+				} else if (resource.startsWith(RESOURCE_MONITOR)) {
+					logDAP.debug("Processing resource '" + RESOURCE_MONITOR + "'");
+					// there are various parts to monitoring
+					if (httpVerb == GET) {
+						// after the command
+						extra = parseTrailing(resource, RESOURCE_MONITOR);
+
+						// ping
+						if (extra.toLowerCase().equals("ping")) {
+							logDAP.debug("processing ping request");
+
+							Date result = DAPMNodeService.getInstance(request, db).ping();
+							if (result != null) {
+								logDAP.debug("processing ping result: "
+										+ result.toString());
+
+								response.setDateHeader("Date", result.getTime());
+								response.setStatus(200);
+
+								response.getWriter().println(result.toString());
+							} else {
+								logDAP.debug("processing ping result: null");
+								response.setStatus(400);
+
+								response.getWriter() .println("No response from the underlying DAP server.");
+							}
+
+							status = true;
+						}
 					}
-				} // if (resource != null)
+				} else if (resource.startsWith(RESOURCE_ERROR)) {
+					// TODO Handle the POST /error thing
+					status = true;
+				} else {
+					throw new InvalidRequest("0000", "No resource matched for " + resource);
+				}
+
+				if (!status) {
+					throw new ServiceFailure("0000", "Unknown error while processing resource: " + resource);
+				}
+
 			} catch (BaseException be) {
 				// report Exceptions as clearly as possible
 				OutputStream out = null;
@@ -351,7 +352,7 @@ public class DAPResourceHandler {
 	 */
 	@SuppressWarnings("unused")
 	private void getSession() throws InvalidToken {
-		// initialize the session - three options
+		// initialize the session - two options
 		// #1
 		// load session from certificate in request
 		session = CertificateManager.getInstance().getSession(request);
@@ -389,11 +390,6 @@ public class DAPResourceHandler {
 				logDAP.error(t.getMessage(), t);
 			}
 		}
-
-		// #3
-		// last resort, check for Metacat sessionid
-		// This option has been removed since the DAP/D1 servlet does not use
-		// metacat
 	}
 
 	/**
@@ -433,24 +429,25 @@ public class DAPResourceHandler {
 		TypeMarshaller.marshalTypeToOutputStream(sm, response.getOutputStream());
 	}
 	
-	private void getObject(String extra) throws InvalidToken, ServiceFailure, NotFound, InsufficientResources, 
+	/**
+	 * Get a stream back the object. This gets the DAP URL from the database, dereferences it
+	 * and uses IOUtils.copyLarge() to dump the result to the response's output stream.
+	 * 
+	 * @param extra The PID text
+	 * 
+	 * @throws InvalidToken
+	 * @throws ServiceFailure
+	 * @throws NotFound
+	 * @throws InsufficientResources
+	 * @throws NotAuthorized
+	 * @throws NotImplemented
+	 */
+	private void sendObject(String extra) throws InvalidToken, ServiceFailure, NotFound, InsufficientResources, 
 			NotAuthorized, NotImplemented {
 		
 		logDAP.debug("in object (pid: " + extra + ")...");
 		try {
-			Identifier pid = new Identifier();
-			pid.setValue(extra);
-			
-			// get(pid) throws if 'in' is null
-			InputStream in = DAPMNodeService.getInstance(request, db).get(pid);
-
-			String formatId = db.getFormatId(extra);
-			String responseType = getResponseType(formatId);
-			response.setContentType(responseType);
-
-			response.setStatus(200);
-			
-			IOUtils.copyLarge(in, response.getOutputStream());
+			dereferenceDapURL(extra);
 			
 		} catch (SQLException e) {
 			logDAP.error("SQL Exception: " + e.getMessage());
@@ -462,6 +459,61 @@ public class DAPResourceHandler {
 			logDAP.error("Failed to copy a response object to the sevlet's out stream: " + e.getMessage());
 			throw new ServiceFailure("1030", e.getMessage());
 		}
+	}
+
+	/**
+	 * Using the PID, lookup the DAP URL, dereference it and stream the result back
+	 * to the client using the response object's output stream. This is used by both
+	 * sendObject and sendReplica.
+	 * 
+	 * @param extra The D1 PID text.
+	 * 
+	 * @throws InvalidToken
+	 * @throws NotAuthorized
+	 * @throws NotImplemented
+	 * @throws ServiceFailure
+	 * @throws NotFound
+	 * @throws InsufficientResources
+	 * @throws SQLException
+	 * @throws DAPDatabaseException
+	 * @throws IOException
+	 */
+	private void dereferenceDapURL(String extra) throws InvalidToken,
+			NotAuthorized, NotImplemented, ServiceFailure, NotFound,
+			InsufficientResources, SQLException, DAPDatabaseException,
+			IOException {
+		Identifier pid = new Identifier();
+		pid.setValue(extra);
+		
+		// get(pid) throws if 'in' is null (i.e., it will not return a null InputStream)
+		InputStream in = DAPMNodeService.getInstance(request, db).get(pid);
+
+		/* Here's how they did it in the metacat server; as with describe, optimizing
+		   access to the system metadata via the getSystemMetadata() call adn then using
+		   that here would probably boost performance. jhrg 6/10/14
+
+        // set the headers for the content
+        String mimeType = ObjectFormatInfo.instance().getMimeType(sm.getFormatId().getValue());
+        if (mimeType == null) {
+        	mimeType = "application/octet-stream";
+        }
+        String extension = ObjectFormatInfo.instance().getExtension(sm.getFormatId().getValue());
+        String filename = id.getValue();
+        if (extension != null) {
+        	filename = id.getValue() + extension;
+        }
+        response.setContentType(mimeType);
+        response.setHeader("Content-Disposition", "inline; filename=" + filename);
+		
+		*/
+		
+        String formatId = db.getFormatId(extra);
+		String responseType = getResponseType(formatId);
+		response.setContentType(responseType);
+
+		response.setStatus(200);
+		
+		IOUtils.copyLarge(in, response.getOutputStream());
 	}
 
 	// ...could make this a map
@@ -476,8 +528,61 @@ public class DAPResourceHandler {
 			return "text/plain";
 	}
 
-	private void sendDescribeObject(String extra) throws InvalidToken, NotAuthorized, NotImplemented, ServiceFailure, 
-			NotFound, JiBXException, IOException {
+	/**
+	 * Return an object in response to a /replica request. This differs from am /object 
+	 * request only in how it is recorded in the log file and in the detail code for
+	 * the ServiceFailure objects throw when various errors happen.
+	 * 
+	 * @param extra The PID text
+	 * 
+	 * @throws InvalidToken
+	 * @throws ServiceFailure
+	 * @throws NotFound
+	 * @throws InsufficientResources
+	 * @throws NotAuthorized
+	 * @throws NotImplemented
+	 */
+	private void sendReplica(String extra) throws InvalidToken, ServiceFailure, NotFound, InsufficientResources, 
+			NotAuthorized, NotImplemented {
+
+		logDAP.debug("in replica (pid: " + extra + ")...");
+		
+		if (!Settings.getConfiguration().getString("org.opendap.d1.nodeReplicate").equals("true"))
+			throw new NotAuthorized("2182", "This host does not allow replication.");
+		
+		try {
+			dereferenceDapURL(extra);
+			
+		} catch (SQLException e) {
+			logDAP.error("SQL Exception: " + e.getMessage());
+			throw new ServiceFailure("2181", e.getMessage());
+		} catch (DAPDatabaseException e) {
+			logDAP.error("DAP Database Exception: " + e.getMessage());
+			throw new ServiceFailure("2181", e.getMessage());
+		} catch (IOException e) {
+			logDAP.error("Failed to copy a response object to the sevlet's out stream: " + e.getMessage());
+			throw new ServiceFailure("2181", e.getMessage());
+		}
+	}
+
+	/**
+	 * Build the response to describe(). Unlike the other calls, describe() 
+	 * is used with the http verb HEAD and puts metadata in the headers of the 
+	 * response object. Otherwise, it is a call to retrieve system metadata.
+	 * Also note that this never throws an exception. Instead, all exceptions
+	 * are trapped and returned not as XML but in the response headers.
+	 * 
+	 * @param extra The PID text
+	 * 
+	 * @throws InvalidToken
+	 * @throws NotAuthorized
+	 * @throws NotImplemented
+	 * @throws ServiceFailure
+	 * @throws NotFound
+	 * @throws JiBXException
+	 * @throws IOException
+	 */
+	private void sendDescribeObject(String extra) {
 		logDAP.debug("in describe...");
 	       
         response.setContentType("text/xml");
@@ -504,19 +609,90 @@ public class DAPResourceHandler {
         response.addHeader("Content-Length", dr.getContent_Length() + "");
         response.addHeader("Last-Modified", DateTimeMarshaller.serializeDateToUTC(dr.getLast_Modified()));
         response.addHeader("DataONE-ObjectFormat", dr.getDataONE_ObjectFormatIdentifier().getValue());
-        // TODO Is this required for a MN?
         response.addHeader("DataONE-SerialVersion", dr.getSerialVersion().toString());
+	}
 
-        /* My old code
-		// look at public DescribeResponse describe(Identifier pid) in DAPMNodeService
-		Identifier pid = new Identifier();
-		pid.setValue(extra);
-		DescribeResponse dr = DAPMNodeService.getInstance(request, db).describe(pid);
+	/**
+	 * Send the list of PIDs and their associated metadata in response to a GET /object
+	 * request. This method extracts the arguments from the parameters parsed from the 
+	 * URL's query string and passes them onto the 'NodeService' class which builds the
+	 * actual DataONE response object. Once the response object is in hand, this method
+	 * serializes it.
+	 * 
+	 * @note This servlet never holds replicas, so the 'replicas' parameter to this method
+	 * is ignored. There's no error if it's given, because without replicas in the database
+	 * the response would be the same regardless of the parameter's value.
+	 *  
+	 * @param params A Hashtable of parsed query string info where the QS keys are keys and
+	 * the values are, well, values (arrays of strings).
+	 * 
+	 * @throws InvalidRequest
+	 * @throws InvalidToken
+	 * @throws NotAuthorized
+	 * @throws NotImplemented
+	 * @throws ServiceFailure
+	 * @throws JiBXException
+	 * @throws IOException
+	 */
+	private void sendListObjects(Hashtable<String, String[]> params) throws InvalidRequest, InvalidToken, 
+			NotAuthorized, NotImplemented, ServiceFailure, JiBXException, IOException {
+		// call listObjects with specified params
+		Date fromDate = null;
+		Date toDate = null;
+		ObjectFormatIdentifier formatId = null;
+		int start = 0;
+		int count = DEFAULT_COUNT;
 
-		response.setContentType("text/xml");
+		try {
+			// Hmmm Metacat used this class to parse the URL params, but it seems to assume that 
+			// params should be decided to the local time. E.G. 2014-06-12T00:00:00 becomes
+			// 2014-06-11T18:00:00 here where we are at GMT-6. Our database stores time in GMT,
+			// however, so I think we should perform no time zone conversion. If we need to
+			// change this, make sure to also change the toDate stuff below. jhrg 6/11/14
+			//
+			// DateTimeMarshaller.deserializeDateToUTC(params.get("fromDate")[0]);
+			
+			if (params.get("fromDate") != null)
+				fromDate = DateUtils.parseDate(params.get("fromDate")[0], new String[]{"yyyy-MM-dd'T'HH:mm:ss"});
+				
+		} catch (Exception e) {
+			logDAP.warn("Could not parse toDate: " + params.get("fromDate")[0]);
+			fromDate = null;
+		}
+
+		try {
+			if (params.get("toDate") != null)
+				toDate = DateUtils.parseDate(params.get("toDate")[0], new String[]{"yyyy-MM-dd'T'HH:mm:ss"});
+		} catch (Exception e) {
+			logDAP.warn("Could not parse toDate: " + params.get("toDate")[0]);
+			toDate = null;
+		}
+
+		if (params.get("formatId") != null) {
+			formatId = new ObjectFormatIdentifier();
+			formatId.setValue(params.get("formatId")[0]);
+		}
+
+		if (params.get("start") != null)
+			start = new Integer(params.get("start")[0]).intValue();
+
+		if (params.get("count") != null)
+			count = new Integer(params.get("count")[0]).intValue();
+
+		// make the crud call
+		logDAP.debug("List Objects call, fromDate: " + fromDate + " toDate: "
+				+ toDate + " formatId: " + formatId + " start: " + start + " count: " + count);
+
+		// replicas == false (never return replicas). This is ignored but we include the 
+		// parameter in this method because the implementation is of an interface and we
+		// must provide a version of all of its methods. jhrg 6/11/14
+		ObjectList ol = DAPMNodeService.getInstance(request, db).listObjects(fromDate, toDate, formatId, false,
+				start, count);
+
 		response.setStatus(200);
-		TypeMarshaller.marshalTypeToOutputStream(dr, response.getOutputStream());
-		*/
+		response.setContentType("text/xml");
+		// Serialize and write it to the output stream
+		TypeMarshaller.marshalTypeToOutputStream(ol, response.getOutputStream());
 	}
 
 	private void sendChecksum(String extra, String algorithm) throws InvalidRequest, InvalidToken, NotAuthorized,
@@ -534,13 +710,19 @@ public class DAPResourceHandler {
 		TypeMarshaller.marshalTypeToOutputStream(c, response.getOutputStream());
 	}
 
+	/**
+	 * Extract the path info following the string 'resource'.
+	 * 
+	 * @param resource
+	 * @param token
+	 * @return
+	 */
 	private String parseTrailing(String resource, String token) {
 		// get the rest
 		String extra = null;
 		if (resource.indexOf(token) != -1) {
 			// what comes after the token?
-			extra = resource
-					.substring(resource.indexOf(token) + token.length());
+			extra = resource.substring(resource.indexOf(token) + token.length());
 			// remove the slash
 			if (extra.startsWith("/")) {
 				extra = extra.substring(1);
@@ -601,7 +783,6 @@ public class DAPResourceHandler {
 	 * @param out
 	 */
 	private void serializeException(BaseException e, OutputStream out) {
-		// TODO: Use content negotiation to determine which return format to use
 		response.setContentType("text/xml");
 		response.setStatus(e.getCode());
 

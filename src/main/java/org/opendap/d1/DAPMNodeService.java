@@ -70,6 +70,7 @@ import org.dataone.service.types.v1.NodeReference;
 import org.dataone.service.types.v1.NodeState;
 import org.dataone.service.types.v1.NodeType;
 import org.dataone.service.types.v1.ObjectFormatIdentifier;
+import org.dataone.service.types.v1.ObjectInfo;
 import org.dataone.service.types.v1.ObjectList;
 import org.dataone.service.types.v1.Permission;
 import org.dataone.service.types.v1.Ping;
@@ -83,6 +84,7 @@ import org.dataone.service.types.v1.Synchronization;
 import org.dataone.service.types.v1.SystemMetadata;
 import org.dspace.foresite.ResourceMap;
 import org.opendap.d1.DatasetsDatabase.DAPDatabaseException;
+import org.opendap.d1.DatasetsDatabase.DatasetMetadata;
 import org.opendap.d1.DatasetsDatabase.DatasetsDatabase;
 //import java.sql.SQLException;
 //import java.sql.SQLException;
@@ -198,7 +200,9 @@ public class DAPMNodeService implements MNCore, MNRead {
 		CertificateManager.getInstance().setCertificateLocation(Settings.getConfiguration().getString("D1Client.certificate.file"));
 	}
 
-	/* (non-Javadoc)
+	/**
+	 * Grab the system metadata info and repackage it for the describe() response.
+	 *  
 	 * @see org.dataone.service.mn.tier1.v1.MNRead#describe(org.dataone.service.types.v1.Identifier)
 	 */
 	// @Override
@@ -206,26 +210,10 @@ public class DAPMNodeService implements MNCore, MNRead {
 			NotAuthorized, NotImplemented, ServiceFailure, NotFound {
 
 		if (!db.isInMetadata(pid.getValue()))
-			throw new NotFound("1420", "The PID '" + pid.getValue() + "' was not found on this server.");
+			throw new NotFound("1380", "The PID '" + pid.getValue() + "' was not found on this server.");
 		
-		/*
-		ObjectFormatIdentifier objectFormatID,
-        BigInteger content_length,
-        Date last_modified,
-        Checksum checksum,
-        BigInteger serialVersion
-        */
-		/* Ben did it this way in the metacat D1 server:
-		 // get system metadata and construct the describe response
-      	 SystemMetadata sysmeta = getSystemMetadata(session, pid);
-      	 DescribeResponse describeResponse = 
-      	 new DescribeResponse(sysmeta.getFormatId(), sysmeta.getSize(), 
-      			sysmeta.getDateSysMetadataModified(),
-      			sysmeta.getChecksum(), sysmeta.getSerialVersion());
-
-         return describeResponse;
-		 */
 		try {
+			/*
 			ObjectFormatIdentifier format = new ObjectFormatIdentifier();
 			format.setValue(db.getFormatId(pid.getValue()));
 			
@@ -239,16 +227,24 @@ public class DAPMNodeService implements MNCore, MNRead {
 			BigInteger serialNumber = db.getSerialNumber(pid.getValue());
 			
 			return new DescribeResponse(format, new BigInteger(db.getSize(pid.getValue())), date, checksum, serialNumber);
-		} catch (SQLException e) {
-			throw new ServiceFailure("2162", e.getMessage());
-		} catch (DAPDatabaseException e) {
-			throw new ServiceFailure("2162", e.getMessage());
-		}
+			*/
+
+			SystemMetadata sysmeta = getSystemMetadata(pid);
+			return new DescribeResponse(
+					sysmeta.getFormatId(), sysmeta.getSize(),
+					sysmeta.getDateSysMetadataModified(),
+					sysmeta.getChecksum(), sysmeta.getSerialVersion());
+
+		} catch (ServiceFailure e) {
+			throw new ServiceFailure("1390", e.getMessage());
+		} /* catch (DAPDatabaseException e) {
+			throw new ServiceFailure("1390", e.getMessage());
+		} */
 	}
 
 	/**
 	 * Return the SDO, SMO or ORE document that matches the given D1/DAP server
-	 * PID.
+	 * PID. Note that this is used for both /object and /replica calls.
 	 * 
 	 * @param pid The D1 Persistent Identifier for the local object
 	 * @return An InputStream; read the object from this.
@@ -263,7 +259,7 @@ public class DAPMNodeService implements MNCore, MNRead {
 		// return it.
 		
 		if (!db.isInMetadata(pid.getValue()))
-			throw new NotFound("1420", "The PID '" + pid.getValue() + "' was not found on this server.");
+			throw new NotFound("1020", "The PID '" + pid.getValue() + "' was not found on this server.");
 		
 		try {
 			InputStream in = null;
@@ -305,7 +301,7 @@ public class DAPMNodeService implements MNCore, MNRead {
 
 		} catch (Exception e) {
             logDAP.error(e.getMessage());
-            throw new ServiceFailure("2162", e.getMessage());
+            throw new ServiceFailure("1030", e.getMessage());
 		}
 	}
 
@@ -343,21 +339,19 @@ public class DAPMNodeService implements MNCore, MNRead {
 		return checksum;
 	}
 
-	/* (non-Javadoc)
+	/**
+	 * In the DAP D1 servlet, get(PID) is used for both the /object and /replica
+	 * calls. This should never be called. It has to be defined because it's part
+	 * of the MNRead interface.
+	 * 
 	 * @see org.dataone.service.mn.tier1.v1.MNRead#getReplica(org.dataone.service.types.v1.Identifier)
 	 */
 	// @Override
-	public InputStream getReplica(Identifier pid) throws InvalidToken,
-			NotAuthorized, NotImplemented, ServiceFailure, NotFound,
-			InsufficientResources {
-		// TODO Auto-generated method stub
-		
-		if (!db.isInMetadata(pid.getValue()))
-			throw new NotFound("1420", "The PID '" + pid.getValue() + "' was not found on this server.");
-		
-		return null;
-	}
+	public InputStream getReplica(Identifier pid) throws ServiceFailure {
 
+		throw new ServiceFailure("2181", "This internal method should never be called.");
+	}
+		
 	/**
 	 * Build a populated instance of the DataONE SystemMetadata object and
 	 * return it. This method makes some assumptions about values for many of
@@ -375,7 +369,7 @@ public class DAPMNodeService implements MNCore, MNRead {
 			NotFound {
 		
 		if (!db.isInMetadata(pid.getValue()))
-			throw new NotFound("1420", "The PID '" + pid.getValue() + "' was not found on this server.");
+			throw new NotFound("1060", "The PID '" + pid.getValue() + "' was not found on this server.");
 		
 		try {
 			SystemMetadata sm = new SystemMetadata();
@@ -425,7 +419,13 @@ public class DAPMNodeService implements MNCore, MNRead {
 			sm.setAccessPolicy(ap);
 			
 			ReplicationPolicy rp = new ReplicationPolicy();
-			rp.setReplicationAllowed(false);
+			boolean replicate = false;
+			if (Settings.getConfiguration().getString("org.opendap.d1.nodeReplicate").equals("true"))
+				replicate = true;
+			rp.setReplicationAllowed(replicate);
+			// We can set a number of limits on how much is replicated and who does the 
+			// replication, etc., but for now, if a site wants to replicate content, let
+			// them. jhrg 6/10/14
 			sm.setReplicationPolicy(rp);
 			
 			Date date = db.getDateSysmetaModified(pid.getValue());
@@ -443,22 +443,102 @@ public class DAPMNodeService implements MNCore, MNRead {
 			
 			return sm;
 		} catch (DAPDatabaseException e) {
-			throw new ServiceFailure("2162", e.getMessage());
+			throw new ServiceFailure("1090", e.getMessage());
 		} catch (SQLException e) {
-			throw new ServiceFailure("2162", e.getMessage());
+			throw new ServiceFailure("1090", e.getMessage());
 		}
 	}
 
-	/* (non-Javadoc)
+	/**
+	 * Return information about PIDs. This queries the database for information about
+	 * the PIDs this node knows about.
+	 * 
 	 * @see org.dataone.service.mn.tier1.v1.MNRead#listObjects(java.util.Date, java.util.Date, org.dataone.service.types.v1.ObjectFormatIdentifier, java.lang.Boolean, java.lang.Integer, java.lang.Integer)
 	 */
 	// @Override
-	public ObjectList listObjects(Date arg0, Date arg1,
-			ObjectFormatIdentifier arg2, Boolean arg3, Integer arg4,
-			Integer arg5) throws InvalidRequest, InvalidToken, NotAuthorized,
-			NotImplemented, ServiceFailure {
-		// TODO Auto-generated method stub
-		return null;
+	public ObjectList listObjects(Date fromDate, Date toDate, ObjectFormatIdentifier format, Boolean ignored,
+			Integer start, Integer count) throws InvalidRequest, InvalidToken, NotAuthorized, NotImplemented, 
+			ServiceFailure {
+		
+		// Take all the params and build up a 'where' clause that will select just what the 
+		// client wants.
+		String where = buildWhereClause(fromDate, toDate, format);
+		logDAP.debug("In listObjects; where clause: " + where);
+		
+		try {
+			// This returns just 'count' entries starting with zero-based entry 'start'
+			List<DatasetMetadata> dmv = db.getAllMetadata(where, start, count);
+			
+			ObjectList ol = new ObjectList();
+			ol.setStart(start);
+			ol.setCount(count);
+			ol.setTotal(db.count(where));
+			for (DatasetMetadata dm: dmv) {
+				ObjectInfo oi = new ObjectInfo();
+				
+				Identifier id = new Identifier();
+				id.setValue(dm.getPID());
+				oi.setIdentifier(id);
+				
+				ObjectFormatIdentifier formatId = new ObjectFormatIdentifier();
+				formatId.setValue(dm.getFormat());
+				oi.setFormatId(formatId);
+
+				Checksum checksum = new Checksum();
+				checksum.setAlgorithm(dm.getAlgorithm());
+				checksum.setValue(dm.getChecksum());
+				oi.setChecksum(checksum);
+				
+				oi.setDateSysMetadataModified(dm.getDateSystemMetadataModified());
+				
+				oi.setSize(dm.getSize());
+				
+				ol.addObjectInfo(oi);	
+			}
+			
+			return ol;
+			
+		} catch (SQLException e) {
+			throw new ServiceFailure("1580", e.getMessage());
+		} catch (DAPDatabaseException e) {
+			throw new ServiceFailure("1580", e.getMessage());
+		}
+	}
+
+	/**
+	 * Build a SQL 'where clause' that can be used to select just what the client wants.
+	 * 
+	 * @param fromDate Only return stuff stating at this date
+	 * @param toDate ... and up to (but not including) this date
+	 * @param format ... and only this format
+	 * @param replicas but ignore this since we only store stuff for which we are an authoritative source
+	 * 
+	 * @return The WHERE clause a a string.
+	 */
+	private String buildWhereClause(Date fromDate, Date toDate, ObjectFormatIdentifier format) {
+		
+		String and = "";
+		String where = "";
+		if (fromDate != null) {
+			where += "dateAdded >= '" + String.format("%tFT%<tT", fromDate) + "'";
+			and = " and ";
+		}
+		
+		if (toDate != null) {
+			where += and + "dateAdded < '" + String.format("%tFT%<tT", toDate) + "'";
+			and = " and ";
+		}
+		
+		if (format != null) {
+			where += and + "format = '" + format.getValue() + "'";
+			// and = " and";
+		}
+
+		// Ignore replicas for now.
+		if (!where.isEmpty())
+			where = "where " + where;
+		
+		return where;
 	}
 
 	/* (non-Javadoc)
