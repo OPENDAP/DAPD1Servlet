@@ -86,50 +86,27 @@ import org.dspace.foresite.ResourceMap;
 import org.opendap.d1.DatasetsDatabase.DAPDatabaseException;
 import org.opendap.d1.DatasetsDatabase.DatasetMetadata;
 import org.opendap.d1.DatasetsDatabase.DatasetsDatabase;
-//import java.sql.SQLException;
-//import java.sql.SQLException;
-//import java.sql.SQLException;
-//import java.util.Hashtable;
-//import org.apache.commons.configuration.ConfigurationException;
-// import org.opendap.d1.DatasetsDatabase.DAPDatabaseException;
-
-//import edu.ucsb.nceas.metacat.MetacatHandler;
-//import edu.ucsb.nceas.metacat.dataone.D1NodeService;
-//import edu.ucsb.nceas.metacat.dataone.MNodeService;
-//import edu.ucsb.nceas.metacat.properties.PropertyService;
-
-//import edu.ucsb.nceas.metacat.properties.PropertyService;
-//import edu.ucsb.nceas.metacat.util.SystemUtil;
-//import edu.ucsb.nceas.utilities.PropertyNotFoundException;
 
 // This code does not support the optional Query interface of DataONE
 // import org.dataone.service.mn.v1.MNQuery;
 // import org.dataone.service.types.v1_1.QueryEngineDescription;
 // import org.dataone.service.types.v1_1.QueryEngineList;
 
-// This is an abstract class that implements lots of stuff like ping()
-// but does so in a way that requires Metacat. For now, I'm ignoring
-// it because it may be simpler to code those myself. jhrg 5/13/14
-// import edu.ucsb.nceas.metacat.dataone.D1NodeService;
-
-/** @brief A DataONE Member Node (tier 1 only) for DAP servers
+/** A DataONE Member Node (tier 1) for DAP servers
  * 
  * This DataONE Member Node implementation provides the MNCore and MNRead
  * APIs only. The optional Query and Views APIs are not (yet) supported.
  * 
  * Implements:
  * MNCore.ping()
- * MNCore.getLogRecords()
- * MNCore.getObjectStatistics()
- * MNCore.getOperationStatistics()
- * MNCore.getStatus()
+ * MNCore.getLogRecords() - not yet
  * MNCore.getCapabilities()
  * MNRead.get()
  * MNRead.getSystemMetadata()
  * MNRead.describe()
  * MNRead.getChecksum()
  * MNRead.listObjects()
- * MNRead.synchronizationFailed()
+ * MNRead.synchronizationFailed() - not yet
  * 
  * @note This class could extend D1NodeService to pick up that abstract class'
  * ping(), etc., methods but it assume the metacat RDB is used for a number
@@ -213,33 +190,13 @@ public class DAPMNodeService implements MNCore, MNRead {
 			throw new NotFound("1380", "The PID '" + pid.getValue() + "' was not found on this server.");
 		
 		try {
-			/*
-			ObjectFormatIdentifier format = new ObjectFormatIdentifier();
-			format.setValue(db.getFormatId(pid.getValue()));
-			
-			Checksum checksum = new Checksum();
-			// Looks fancy, but I only plan to support SHA-1. 6/4/14
-			checksum.setAlgorithm(db.getAlgorithm(pid.getValue()));
-			checksum.setValue(db.getChecksum(pid.getValue()));
-
-			Date date = db.getDateSysmetaModified(pid.getValue());
-			
-			BigInteger serialNumber = db.getSerialNumber(pid.getValue());
-			
-			return new DescribeResponse(format, new BigInteger(db.getSize(pid.getValue())), date, checksum, serialNumber);
-			*/
-
 			SystemMetadata sysmeta = getSystemMetadata(pid);
-			return new DescribeResponse(
-					sysmeta.getFormatId(), sysmeta.getSize(),
-					sysmeta.getDateSysMetadataModified(),
-					sysmeta.getChecksum(), sysmeta.getSerialVersion());
+			return new DescribeResponse(sysmeta.getFormatId(), sysmeta.getSize(),
+					sysmeta.getDateSysMetadataModified(), sysmeta.getChecksum(), sysmeta.getSerialVersion());
 
 		} catch (ServiceFailure e) {
 			throw new ServiceFailure("1390", e.getMessage());
-		} /* catch (DAPDatabaseException e) {
-			throw new ServiceFailure("1390", e.getMessage());
-		} */
+		}
 	}
 
 	/**
@@ -600,7 +557,7 @@ public class DAPMNodeService implements MNCore, MNRead {
             String serviceName = Settings.getConfiguration().getString("org.opendap.d1.serviceName");
             
             Node node = new Node();
-            node.setBaseURL(serviceName + "/" + nodeTypeString);
+            node.setBaseURL(serviceName + "/" + nodeTypeString + "/");
             node.setDescription(nodeDesc);
 
             // set the node's health information

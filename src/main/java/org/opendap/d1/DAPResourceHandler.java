@@ -190,10 +190,12 @@ public class DAPResourceHandler {
 
 				// In the web.xml for the DAPRestServlet, I set the url pattern
 				// like this: <url-pattern>/d1/mn/*</url-pattern> which means
-				// that
-				// the leading '/d1/mn/' is removed by the servlet container.
-				// jhrg 5/20/14
-				resource = resource.substring(resource.indexOf("/") + 1);
+				// that the leading '/d1/mn/' is removed by the servlet container.
+				// Since this servlet implements only the 'v1' API, I've hardcoded
+				// that value here. It could be read from the config file using
+				// the org.opendap.d1.mnCore.serviceVersion and mnRead...
+				// properties. jhrg 5/20/14
+				resource = resource.substring(resource.indexOf("v1/") + 3);
 
 				logDAP.debug("processed resource: '" + resource + "'");
 
