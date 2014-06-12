@@ -39,7 +39,6 @@ import javax.servlet.http.HttpServletResponse;
 
 import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang.time.DateUtils;
 import org.apache.log4j.Logger;
 import org.dataone.client.auth.CertificateManager;
 import org.dataone.configuration.Settings;
@@ -63,6 +62,7 @@ import org.dataone.service.types.v1.SystemMetadata;
 import org.dataone.service.util.DateTimeMarshaller;
 import org.dataone.service.util.TypeMarshaller;
 import org.jibx.runtime.JiBXException;
+import org.opendap.d1.DatasetsDatabase.DAPD1DateParser;
 import org.opendap.d1.DatasetsDatabase.DAPDatabaseException;
 import org.opendap.d1.DatasetsDatabase.DatasetsDatabase;
 
@@ -657,7 +657,7 @@ public class DAPResourceHandler {
 			// DateTimeMarshaller.deserializeDateToUTC(params.get("fromDate")[0]);
 			
 			if (params.get("fromDate") != null)
-				fromDate = DateUtils.parseDate(params.get("fromDate")[0], new String[]{"yyyy-MM-dd'T'HH:mm:ss"});
+				fromDate = DAPD1DateParser.StringToDate(params.get("fromDate")[0]);
 				
 		} catch (Exception e) {
 			logDAP.warn("Could not parse toDate: " + params.get("fromDate")[0]);
@@ -666,7 +666,7 @@ public class DAPResourceHandler {
 
 		try {
 			if (params.get("toDate") != null)
-				toDate = DateUtils.parseDate(params.get("toDate")[0], new String[]{"yyyy-MM-dd'T'HH:mm:ss"});
+				toDate = DAPD1DateParser.StringToDate(params.get("toDate")[0]);
 		} catch (Exception e) {
 			logDAP.warn("Could not parse toDate: " + params.get("toDate")[0]);
 			toDate = null;

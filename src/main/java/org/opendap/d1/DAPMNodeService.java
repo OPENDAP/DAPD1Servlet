@@ -83,6 +83,7 @@ import org.dataone.service.types.v1.Subject;
 import org.dataone.service.types.v1.Synchronization;
 import org.dataone.service.types.v1.SystemMetadata;
 import org.dspace.foresite.ResourceMap;
+import org.opendap.d1.DatasetsDatabase.DAPD1DateParser;
 import org.opendap.d1.DatasetsDatabase.DAPDatabaseException;
 import org.opendap.d1.DatasetsDatabase.DatasetMetadata;
 import org.opendap.d1.DatasetsDatabase.DatasetsDatabase;
@@ -477,12 +478,12 @@ public class DAPMNodeService implements MNCore, MNRead {
 		String and = "";
 		String where = "";
 		if (fromDate != null) {
-			where += "dateAdded >= '" + String.format("%tFT%<tT", fromDate) + "'";
+			where += "dateAdded >= '" + DAPD1DateParser.DateToString(fromDate) + "'";
 			and = " and ";
 		}
 		
 		if (toDate != null) {
-			where += and + "dateAdded < '" + String.format("%tFT%<tT", toDate) + "'";
+			where += and + "dateAdded < '" + DAPD1DateParser.DateToString(toDate) + "'";
 			and = " and ";
 		}
 		
