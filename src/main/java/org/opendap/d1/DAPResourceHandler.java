@@ -221,6 +221,13 @@ public class DAPResourceHandler {
 					if (httpVerb == GET) {
 						// after the command
 						extra = parseTrailing(resource, RESOURCE_META);
+						// I never tested this code because when Tomcat is configured to allow
+						// URL encoded paths into the servlets, it does the decoding before 
+						// making the doGet(), ..., calls. jhrg 6/13/14
+						// Decode the PID
+						// logDAP.debug("PID before decoding: " + parseTrailing(resource, RESOURCE_META));
+						// extra = new URI(parseTrailing(resource, RESOURCE_META)).getPath();
+						// logDAP.debug("PID after decoding: " + extra);
 						sendSysmetaResponse(extra);
 						status = true;
 					}

@@ -429,7 +429,7 @@ public class DAPMNodeService implements MNCore, MNRead {
 			
 			ObjectList ol = new ObjectList();
 			ol.setStart(start);
-			ol.setCount(count);
+			ol.setCount(dmv.size());
 			ol.setTotal(db.count(where));
 			for (DatasetMetadata dm: dmv) {
 				ObjectInfo oi = new ObjectInfo();
