@@ -500,7 +500,7 @@ public class DAPResourceHandler {
 		InputStream in = DAPMNodeService.getInstance(request, db).get(pid);
 
 		/* Here's how they did it in the metacat server; as with describe, optimizing
-		   access to the system metadata via the getSystemMetadata() call adn then using
+		   access to the system metadata via the getSystemMetadata() call and then using
 		   that here would probably boost performance. jhrg 6/10/14
 
         // set the headers for the content
