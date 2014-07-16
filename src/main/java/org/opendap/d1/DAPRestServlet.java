@@ -29,8 +29,9 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import org.apache.log4j.Logger;
 import org.opendap.d1.DatasetsDatabase.DAPDatabaseException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * DAP implementation of Earthgrid (Ecogrid) REST API as a servlet. For each request the
@@ -91,7 +92,7 @@ public class DAPRestServlet extends HttpServlet {
 	 */
     @Override
     public void init(ServletConfig config) throws ServletException {
-        logDAP = Logger.getLogger(this.getClass());
+        logDAP = LoggerFactory.getLogger(this.getClass());
 
         super.init(config);
     }
@@ -146,7 +147,6 @@ public class DAPRestServlet extends HttpServlet {
    	 
         resourceHandler = createHandler(request, response);
         resourceHandler.handle(DAPResourceHandler.POST);
-    	// super.doPost(request, response);
     }
 
 }

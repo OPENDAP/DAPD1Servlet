@@ -39,7 +39,6 @@ import javax.servlet.http.HttpServletResponse;
 
 import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.io.IOUtils;
-import org.apache.log4j.Logger;
 import org.dataone.client.auth.CertificateManager;
 import org.dataone.configuration.Settings;
 import org.dataone.portal.PortalCertificateManager;
@@ -65,6 +64,8 @@ import org.jibx.runtime.JiBXException;
 import org.opendap.d1.DatasetsDatabase.DAPD1DateParser;
 import org.opendap.d1.DatasetsDatabase.DAPDatabaseException;
 import org.opendap.d1.DatasetsDatabase.DatasetsDatabase;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * @brief Handle GET, POST and HEAD requests for the DAP/D1 servlet.
@@ -72,18 +73,18 @@ import org.opendap.d1.DatasetsDatabase.DatasetsDatabase;
  * MN REST service implementation handler
  * 
  * MNCore -- Partly 
- * ping() - GET /d1/mn/monitor/ping (done)
- * log() - GET /d1/mn/log 
- * getCapabilities() - GET /d1/mn/ and /d1/mn/node (done)
+ * ping() - GET /d1/mn/monitor/v1/ping (done)
+ * log() - GET /d1/mn/v1/log 
+ * getCapabilities() - GET /d1/mn/ and /d1/mn/v1/node (done)
  * 
  * MNRead -- Partly 
- * get() - GET /d1/mn/object/PID (done)
- * getSystemMetadata() - GET /d1/mn/meta/PID (done)
+ * get() - GET /d1/mn/v1/object/PID (done)
+ * getSystemMetadata() - GET /d1/mn/v1/meta/PID (done)
  * getReplica() - GET /replica/PID (done)
- * describe() - HEAD /d1/mn/object/PID (done)
- * getChecksum() - GET /d1/mn/checksum/PID (done)
- * listObjects() - GET /d1/mn/object
- * synchronizationFailed() - POST /d1/mn/error
+ * describe() - HEAD /d1/mn/v1/object/PID (done)
+ * getChecksum() - GET /d1/mn/v1/checksum/PID (done)
+ * listObjects() - GET /d1/mn/v1/object
+ * synchronizationFailed() - POST /d1/mn/v1/error
  * 
  * @author James Gallagher, after Ben Leinfelder
  */
@@ -139,7 +140,7 @@ public class DAPResourceHandler {
 	public DAPResourceHandler(ServletContext servletContext, HttpServletRequest request, HttpServletResponse response)
 			throws DAPDatabaseException {
 		
-		logDAP = Logger.getLogger(DAPResourceHandler.class);
+		logDAP = LoggerFactory.getLogger(DAPResourceHandler.class);
 		
 		this.servletContext = servletContext;
 		this.request = request;

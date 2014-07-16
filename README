@@ -4,6 +4,8 @@ using the DataONE protocol when those data are served using DAP. Any DAP
 server can be used, so long as it can package results in NetCDF files and
 can return ISO 19115 documents for those data results.
 
+Installation
+
 Configuration
 
 Two files need to be edited to configure the server.
@@ -47,5 +49,10 @@ org.opendap.d1.subject = public:
 org.opendap.d1.contactSubject = CN=James Gallagher,O=OPeNDAP,C=US
 
 org.opendap.d1.nodeDescription = This node contains test data.
+
+Testing
+
+http://localhost:6044/DAPD1Servlet/d1/mn/v1/monitor/ping
+
 
  

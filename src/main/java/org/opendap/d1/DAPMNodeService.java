@@ -43,7 +43,6 @@ import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.DefaultHttpClient;
-import org.apache.log4j.Logger;
 import org.dataone.client.auth.CertificateManager;
 import org.dataone.configuration.Settings;
 import org.dataone.ore.ResourceMapFactory;
@@ -87,6 +86,8 @@ import org.opendap.d1.DatasetsDatabase.DAPD1DateParser;
 import org.opendap.d1.DatasetsDatabase.DAPDatabaseException;
 import org.opendap.d1.DatasetsDatabase.DatasetMetadata;
 import org.opendap.d1.DatasetsDatabase.DatasetsDatabase;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 // This code does not support the optional Query interface of DataONE
 // import org.dataone.service.mn.v1.MNQuery;
@@ -118,7 +119,7 @@ import org.opendap.d1.DatasetsDatabase.DatasetsDatabase;
  */
 public class DAPMNodeService implements MNCore, MNRead {
 
-	private static Logger logDAP = Logger.getLogger(DAPMNodeService.class);
+	private static Logger logDAP = LoggerFactory.getLogger(DAPMNodeService.class);
 
 	private static DAPMNodeService singleton = null;
 	
@@ -169,7 +170,7 @@ public class DAPMNodeService implements MNCore, MNRead {
 	 * Constructor, private for singleton access.
 	 */
 	private DAPMNodeService(HttpServletRequest request, DatasetsDatabase db) {
-		logDAP = Logger.getLogger(DAPMNodeService.class);
+		logDAP = LoggerFactory.getLogger(DAPMNodeService.class);
 
 		this.request = request;
 		this.db = db;
