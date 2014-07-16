@@ -119,7 +119,7 @@ import org.slf4j.LoggerFactory;
  */
 public class DAPMNodeService implements MNCore, MNRead {
 
-	private static Logger logDAP = LoggerFactory.getLogger(DAPMNodeService.class);
+	private static Logger log = LoggerFactory.getLogger(DAPMNodeService.class);
 
 	private static DAPMNodeService singleton = null;
 	
@@ -127,6 +127,8 @@ public class DAPMNodeService implements MNCore, MNRead {
 	protected HttpServletRequest request;
 	/// An open connection to the database that holds the dataset info
 	protected DatasetsDatabase db;
+	// An open connection to the Log database
+	protected LogDatabase logDb;
 
 	/**
 	 * out-of-band session object to be used when not passed in as a method
@@ -159,9 +161,9 @@ public class DAPMNodeService implements MNCore, MNRead {
 	 * @return instance - the instance of MNodeService
 	 * @throws DAPDatabaseException 
 	 */
-	public synchronized static DAPMNodeService getInstance(HttpServletRequest request, DatasetsDatabase db) {
+	public synchronized static DAPMNodeService getInstance(HttpServletRequest request, DatasetsDatabase db, LogDatabase logDb) {
 		if (singleton == null) {
-			singleton = new DAPMNodeService(request, db);
+			singleton = new DAPMNodeService(request, db, logDb);
 		}
 		return singleton;
 	}
@@ -169,11 +171,12 @@ public class DAPMNodeService implements MNCore, MNRead {
 	/**
 	 * Constructor, private for singleton access.
 	 */
-	private DAPMNodeService(HttpServletRequest request, DatasetsDatabase db) {
-		logDAP = LoggerFactory.getLogger(DAPMNodeService.class);
+	private DAPMNodeService(HttpServletRequest request, DatasetsDatabase db, LogDatabase logDb) {
+		log = LoggerFactory.getLogger(DAPMNodeService.class);
 
 		this.request = request;
 		this.db = db;
+		this.logDb = logDb;
 
 		// set the Member Node certificate file location
 		CertificateManager.getInstance().setCertificateLocation(Settings.getConfiguration().getString("D1Client.certificate.file"));
@@ -259,7 +262,7 @@ public class DAPMNodeService implements MNCore, MNRead {
 			return in;
 
 		} catch (Exception e) {
-            logDAP.error(e.getMessage());
+            log.error(e.getMessage());
             throw new ServiceFailure("1030", e.getMessage());
 		}
 	}
@@ -421,8 +424,8 @@ public class DAPMNodeService implements MNCore, MNRead {
 		
 		// Take all the params and build up a 'where' clause that will select just what the 
 		// client wants.
-		String where = buildWhereClause(fromDate, toDate, format);
-		logDAP.debug("In listObjects; where clause: " + where);
+		String where = buildObjectsWhereClause(fromDate, toDate, format);
+		log.debug("In listObjects; where clause: " + where);
 		
 		try {
 			// This returns just 'count' entries starting with zero-based entry 'start'
@@ -474,7 +477,7 @@ public class DAPMNodeService implements MNCore, MNRead {
 	 * 
 	 * @return The WHERE clause a a string.
 	 */
-	private String buildWhereClause(Date fromDate, Date toDate, ObjectFormatIdentifier format) {
+	private String buildObjectsWhereClause(Date fromDate, Date toDate, ObjectFormatIdentifier format) {
 		
 		String and = "";
 		String where = "";
@@ -494,6 +497,35 @@ public class DAPMNodeService implements MNCore, MNRead {
 		}
 
 		// Ignore replicas for now.
+		if (!where.isEmpty())
+			where = "where " + where;
+		
+		return where;
+	}
+
+	private String buildLogEntriesWhereClause(Date fromDate, Date toDate, Event event, String idFilter) {
+		
+		String and = "";
+		String where = "";
+		if (fromDate != null) {
+			where += "dateLogged >= '" + DAPD1DateParser.DateToString(fromDate) + "'";
+			and = " and ";
+		}
+		
+		if (toDate != null) {
+			where += and + "dateLogged < '" + DAPD1DateParser.DateToString(toDate) + "'";
+			and = " and ";
+		}
+		
+		if (event != null) {
+			where += and + "event = '" + event.toString() + "'";
+			and = " and";
+		}
+
+		if (idFilter != null) {
+			where += and + "PID like '" + idFilter + "%'";			
+		}
+		
 		if (!where.isEmpty())
 			where = "where " + where;
 		
@@ -631,20 +663,30 @@ public class DAPMNodeService implements MNCore, MNRead {
 
         } catch (Throwable e) {
             String msg = "MNodeService.getCapabilities(): " + "property not found: " + e.getMessage();
-            logDAP.error(msg);
+            log.error(msg);
             throw new ServiceFailure("2162", msg);
         } 
 	}
 
-	/* (non-Javadoc)
-	 * @see org.dataone.service.mn.tier1.v1.MNCore#getLogRecords(java.util.Date, java.util.Date, org.dataone.service.types.v1.Event, java.lang.String, java.lang.Integer, java.lang.Integer)
+	/**
+	 * Return log records.
+	 * 
+	 * Use the log database to extract log records for access to the server.
+	 * 
+	 * @return A D1 Log object with the requested Log Entries.
 	 */
 	// @Override
-	public Log getLogRecords(Date arg0, Date arg1, Event arg2, String arg3,
-			Integer arg4, Integer arg5) throws InvalidRequest, InvalidToken,
-			NotAuthorized, NotImplemented, ServiceFailure {
-		// TODO Auto-generated method stub
-		return null;
+	public Log getLogRecords(Date fromDate, Date toDate, Event event, String idFilter, Integer start, Integer count) 
+			throws InvalidRequest, InvalidToken, NotAuthorized, NotImplemented, ServiceFailure {
+
+		String where = buildLogEntriesWhereClause(fromDate, toDate, event, idFilter);
+		log.debug("In listObjects; where clause: " + where);
+
+		try {
+			return logDb.getMatchingLogEntries(where, start, count);
+		} catch (Exception e) {
+			throw new ServiceFailure("1490", "Encountered an Exception while accessing the log: " + e.getMessage());
+		}
 	}
 
 	/** 
@@ -661,7 +703,7 @@ public class DAPMNodeService implements MNCore, MNRead {
 	 */
 	// @Override
 	public Date ping() throws NotImplemented, ServiceFailure, InsufficientResources {
-		logDAP.trace("In ping(); DAPServerBaseURL: " + Settings.getConfiguration().getString("org.opendap.d1.DAPServerBaseURL"));
+		log.trace("In ping(); DAPServerBaseURL: " + Settings.getConfiguration().getString("org.opendap.d1.DAPServerBaseURL"));
 		
 		try {
 			URL baseURL = new URL(Settings.getConfiguration().getString("org.opendap.d1.DAPServerBaseURL"));

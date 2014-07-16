@@ -52,7 +52,9 @@ import org.dataone.service.exceptions.NotImplemented;
 import org.dataone.service.exceptions.ServiceFailure;
 import org.dataone.service.types.v1.Checksum;
 import org.dataone.service.types.v1.DescribeResponse;
+import org.dataone.service.types.v1.Event;
 import org.dataone.service.types.v1.Identifier;
+import org.dataone.service.types.v1.Log;
 import org.dataone.service.types.v1.Node;
 import org.dataone.service.types.v1.ObjectFormatIdentifier;
 import org.dataone.service.types.v1.ObjectList;
@@ -117,16 +119,24 @@ public class DAPResourceHandler {
 	
 	private static String OPENDAP_PROPERTIES = "opendap.properties";
 	
-	private ServletContext servletContext;
-	private Logger logDAP;
+	private static Logger log = LoggerFactory.getLogger(DAPResourceHandler.class);
 
-	/// An open connection to the database that holds the dataset info
-	protected DatasetsDatabase db;
+	private ServletContext servletContext;
 
 	protected HttpServletRequest request;
 	protected HttpServletResponse response;
 
+	/// An open connection to the database that holds the dataset info
+	protected DatasetsDatabase db;
+
+	/// An open connection to the log db
+	protected LogDatabase logDb;
+	
+	/// The query string params
 	protected Hashtable<String, String[]> params;
+	
+	protected String ipAddress = "";
+	protected String userAgent = "";
 
 	// D1 certificate-based authentication
 	protected Session session;
@@ -140,22 +150,22 @@ public class DAPResourceHandler {
 	public DAPResourceHandler(ServletContext servletContext, HttpServletRequest request, HttpServletResponse response)
 			throws DAPDatabaseException {
 		
-		logDAP = LoggerFactory.getLogger(DAPResourceHandler.class);
-		
 		this.servletContext = servletContext;
 		this.request = request;
 		this.response = response;
+		
+		this.ipAddress = request.getRemoteAddr();
+		this.userAgent = request.getHeader("user-agent");
 		
 		try {
 			Settings.augmentConfiguration(OPENDAP_PROPERTIES);
 		}
 		catch (ConfigurationException ce) {
-			logDAP.error("Failed to read the config file: " + OPENDAP_PROPERTIES);
+			log.error("Failed to read the config file: " + OPENDAP_PROPERTIES);
 		}
 
-		String dbName = Settings.getConfiguration().getString("org.opendap.d1.DatabaseName");
-		// dbName = servletContext.getRealPath(dbName);
-		logDAP.debug("in object (dbName: " + dbName + ")...");
+		String dbName = Settings.getConfiguration().getString("org.opendap.d1.DatasetsDatabaseName");
+		log.debug("in object (dbName: {})", dbName);
 
 		try {
 			db = new DatasetsDatabase(dbName);
@@ -166,6 +176,20 @@ public class DAPResourceHandler {
 		} catch (ClassNotFoundException e) {
 			throw new DAPDatabaseException("The database is not valid (" + dbName + "): " + e.getMessage());
 		}
+		
+		String logDbName = Settings.getConfiguration().getString("org.opendap.d1.LogDatabaseName");
+		String nodeId = Settings.getConfiguration().getString("org.opendap.d1.nodeId");
+		log.debug("in object (Log database name: {}; nodeId: {})", logDbName, nodeId);
+		try {
+			logDb = new LogDatabase(logDbName, nodeId);
+			if (!logDb.isValid())
+				throw new DAPDatabaseException("The database is not valid (" + logDbName + ").");
+		} catch (SQLException e) {
+			throw new DAPDatabaseException("The database is not valid (" + logDbName + "): " + e.getMessage());
+		} catch (ClassNotFoundException e) {
+			throw new DAPDatabaseException("The database is not valid (" + logDbName + "): " + e.getMessage());
+		}
+
 	}
 
 	/**
@@ -187,7 +211,7 @@ public class DAPResourceHandler {
 				// get the resource
 				String resource = request.getPathInfo();
 
-				logDAP.debug("handling verb " + httpVerb + " request with resource '" + resource + "'");
+				log.debug("handling verb {} request with resource '{}'", httpVerb, resource);
 
 				// In the web.xml for the DAPRestServlet, I set the url pattern
 				// like this: <url-pattern>/d1/mn/*</url-pattern> which means
@@ -198,7 +222,7 @@ public class DAPResourceHandler {
 				// properties. jhrg 5/20/14
 				resource = parseTrailing(resource, API_VERSION);
 
-				logDAP.debug("processed resource: '" + resource + "'");
+				log.debug("processed resource: '" + resource + "'");
 
 				// default to node info
 				if (resource == null || resource.equals("")) {
@@ -210,25 +234,29 @@ public class DAPResourceHandler {
 				boolean status = false;
 
 				if (resource.startsWith(RESOURCE_NODE)) {
-					logDAP.debug("Using resource '" + RESOURCE_NODE + "'");
-					// node (aka getCapabilities) response. The method uses
-					// the output stream to serialize the result and throws an
-					// exception if there's a problem.
-					sendNodeResponse();
-					status = true;
+					log.debug("Using resource '" + RESOURCE_NODE + "'");
+					
+					if (httpVerb == GET) {
+						// node (aka getCapabilities) response. The method uses
+						// the output stream to serialize the result and throws
+						// an
+						// exception if there's a problem.
+						sendNodeResponse();
+						status = true;
+					}
 				} else if (resource.startsWith(RESOURCE_META)) {
-					logDAP.debug("Using resource '" + RESOURCE_META + "'");
-					// get
+					log.debug("Using resource '" + RESOURCE_META + "'");
+
 					if (httpVerb == GET) {
 						// after the command
 						extra = parseTrailing(resource, RESOURCE_META);
-						// I never tested this code because when Tomcat is configured to allow
-						// URL encoded paths into the servlets, it does the decoding before 
-						// making the doGet(), ..., calls. jhrg 6/13/14
-						// Decode the PID
+						// NB: When Tomcat is configured to allow URL encoded paths into the servlets,
+						// it does the decoding before  making the doGet(), ..., calls.
+						// However, here's code to decode the PID, if it's ever needed. jhrg 6/13/14
 						// logDAP.debug("PID before decoding: " + parseTrailing(resource, RESOURCE_META));
 						// extra = new URI(parseTrailing(resource, RESOURCE_META)).getPath();
 						// logDAP.debug("PID after decoding: " + extra);
+						
 						sendSysmetaResponse(extra);
 						status = true;
 					}
@@ -236,72 +264,70 @@ public class DAPResourceHandler {
 					// This is the get() call which returns SDOs and SMOs
 					// or the describe() call for the same depending on the
 					// HTTP verb (GET or HEAD)
-					logDAP.debug("Using resource '" + RESOURCE_OBJECTS + "'");
-					// after the command
+					log.debug("Using resource '" + RESOURCE_OBJECTS + "'");
+					// 'extra' is text that follows the command in the URL's path.
 					extra = parseTrailing(resource, RESOURCE_OBJECTS);
-					logDAP.debug("objectId: " + extra);
-					logDAP.debug("verb:" + httpVerb);
+					log.debug("objectId: " + extra);
+					log.debug("verb:" + httpVerb);
 
 					if (httpVerb == GET) {
 						if (extra == null || extra.isEmpty())
 							sendListObjects(params);
-						else
+						else {
+							logDb.addEntry(extra, ipAddress, userAgent, "read");
 							sendObject(extra);
+						}
 						status = true;
 					} else if (httpVerb == HEAD) {
 						sendDescribeObject(extra);
 						status = true;
 					}
 				} else if (resource.startsWith(RESOURCE_LOG)) {
-					logDAP.debug("Using resource '" + RESOURCE_LOG + "'");
+					log.debug("Using resource '" + RESOURCE_LOG + "'");
 					// handle log events
 					if (httpVerb == GET) {
-						// FIXME getLog();
+						sendLogEntries(params);
 						status = true;
-						throw new NotImplemented("1461", "log is not yet supported");
 					}
 				} else if (resource.startsWith(RESOURCE_CHECKSUM)) {
-					logDAP.debug("Using resource '" + RESOURCE_CHECKSUM + "'");
+					log.debug("Using resource '" + RESOURCE_CHECKSUM + "'");
 					// handle checksum requests
 					if (httpVerb == GET) {
-						// after the command
+						// 'extra' is text that follows the command in the URL's path.
 						extra = parseTrailing(resource, RESOURCE_CHECKSUM);
 						String algorithm = "SHA-1";
 						sendChecksum(extra, algorithm);
 						status = true;
 					}
 				} else if (resource.startsWith(RESOURCE_REPLICA)) {
-					logDAP.debug("Using resource '" + RESOURCE_REPLICA + "'");
+					log.debug("Using resource '" + RESOURCE_REPLICA + "'");
 					// handle replica requests
 					if (httpVerb == GET) {
-						// after the command
 						extra = parseTrailing(resource, RESOURCE_REPLICA);
 						sendReplica(extra);
 						status = true;
 					}
 
 				} else if (resource.startsWith(RESOURCE_MONITOR)) {
-					logDAP.debug("Processing resource '" + RESOURCE_MONITOR + "'");
+					log.debug("Processing resource '" + RESOURCE_MONITOR + "'");
 					// there are various parts to monitoring
 					if (httpVerb == GET) {
-						// after the command
 						extra = parseTrailing(resource, RESOURCE_MONITOR);
 
 						// ping
 						if (extra.toLowerCase().equals("ping")) {
-							logDAP.debug("processing ping request");
+							log.debug("processing ping request");
 
-							Date result = DAPMNodeService.getInstance(request, db).ping();
+							Date result = DAPMNodeService.getInstance(request, db, logDb).ping();
 							if (result != null) {
-								logDAP.debug("processing ping result: "
-										+ result.toString());
+								log.debug("processing ping result: " + result.toString());
 
 								response.setDateHeader("Date", result.getTime());
 								response.setStatus(200);
 
 								response.getWriter().println(result.toString());
 							} else {
-								logDAP.debug("processing ping result: null");
+								log.debug("processing ping result: null");
 								response.setStatus(400);
 
 								response.getWriter() .println("No response from the underlying DAP server.");
@@ -328,17 +354,17 @@ public class DAPResourceHandler {
 				try {
 					out = response.getOutputStream();
 				} catch (IOException e) {
-					logDAP.error("Could not get output stream from response", e);
+					log.error("Could not get output stream from response", e);
 				}
 				serializeException(be, out);
 			} catch (Exception e) {
 				// report Exceptions as clearly and generically as possible
-				logDAP.error(e.getClass() + ": " + e.getMessage(), e);
+				log.error(e.getClass() + ": " + e.getMessage(), e);
 				OutputStream out = null;
 				try {
 					out = response.getOutputStream();
 				} catch (IOException ioe) {
-					logDAP.error("Could not get output stream from response", ioe);
+					log.error("Could not get output stream from response", ioe);
 				}
 				ServiceFailure se = new ServiceFailure("2162", e.getMessage());
 				serializeException(se, out);
@@ -347,7 +373,7 @@ public class DAPResourceHandler {
 		} catch (Exception e) {
 			response.setStatus(400);
 			printError("Incorrect resource!", response);
-			logDAP.error(e.getClass() + ": " + e.getMessage(), e);
+			log.error(e.getClass() + ": " + e.getMessage(), e);
 		}
 	}
 
@@ -380,18 +406,18 @@ public class DAPResourceHandler {
 						.getRealPath(configurationFileName);
 				PortalCertificateManager portalManager = new PortalCertificateManager(
 						configurationFilePath);
-				logDAP.debug("Initialized the PortalCertificateManager using config file: "
+				log.debug("Initialized the PortalCertificateManager using config file: "
 						+ configurationFilePath);
 				X509Certificate certificate = portalManager
 						.getCertificate(request);
-				logDAP.debug("Retrieved certificate: " + certificate);
+				log.debug("Retrieved certificate: " + certificate);
 				PrivateKey key = portalManager.getPrivateKey(request);
-				logDAP.debug("Retrieved key: " + key);
+				log.debug("Retrieved key: " + key);
 				if (certificate != null && key != null) {
 					request.setAttribute(
 							"javax.servlet.request.X509Certificate",
 							certificate);
-					logDAP.debug("Added certificate to the request: "
+					log.debug("Added certificate to the request: "
 							+ certificate.toString());
 				}
 
@@ -399,7 +425,7 @@ public class DAPResourceHandler {
 				session = CertificateManager.getInstance().getSession(request);
 			} catch (Throwable t) {
 				// don't require configured OAuth4MyProxy
-				logDAP.error(t.getMessage(), t);
+				log.error(t.getMessage(), t);
 			}
 		}
 	}
@@ -417,9 +443,9 @@ public class DAPResourceHandler {
 	 */
 	private void sendNodeResponse() throws JiBXException, IOException,
 			NotImplemented, NotAuthorized, ServiceFailure, InvalidRequest {
-		logDAP.debug("in node...");
+		log.debug("in node...");
 
-		Node n = DAPMNodeService.getInstance(request, db).getCapabilities();
+		Node n = DAPMNodeService.getInstance(request, db, logDb).getCapabilities();
 
 		response.setContentType("text/xml");
 		response.setStatus(200);
@@ -428,12 +454,12 @@ public class DAPResourceHandler {
 
 	private void sendSysmetaResponse(String extra) throws InvalidToken, NotAuthorized, 
 			NotImplemented, ServiceFailure, NotFound, JiBXException, IOException {
-		logDAP.debug("in sysmeta...");
+		log.debug("in sysmeta...");
 
 		Identifier pid = new Identifier();
 		pid.setValue(extra);
 		
-		SystemMetadata sm = DAPMNodeService.getInstance(request, db).getSystemMetadata(pid);
+		SystemMetadata sm = DAPMNodeService.getInstance(request, db, logDb).getSystemMetadata(pid);
 
 		response.setContentType("text/xml");
 		response.setStatus(200);
@@ -457,18 +483,18 @@ public class DAPResourceHandler {
 	private void sendObject(String extra) throws InvalidToken, ServiceFailure, NotFound, InsufficientResources, 
 			NotAuthorized, NotImplemented {
 		
-		logDAP.debug("in object (pid: " + extra + ")...");
+		log.debug("in object (pid: " + extra + ")...");
 		try {
 			dereferenceDapURL(extra);
 			
 		} catch (SQLException e) {
-			logDAP.error("SQL Exception: " + e.getMessage());
+			log.error("SQL Exception: " + e.getMessage());
 			throw new ServiceFailure("1030", e.getMessage());
 		} catch (DAPDatabaseException e) {
-			logDAP.error("DAP Database Exception: " + e.getMessage());
+			log.error("DAP Database Exception: " + e.getMessage());
 			throw new ServiceFailure("1030", e.getMessage());
 		} catch (IOException e) {
-			logDAP.error("Failed to copy a response object to the sevlet's out stream: " + e.getMessage());
+			log.error("Failed to copy a response object to the sevlet's out stream: " + e.getMessage());
 			throw new ServiceFailure("1030", e.getMessage());
 		}
 	}
@@ -498,7 +524,7 @@ public class DAPResourceHandler {
 		pid.setValue(extra);
 		
 		// get(pid) throws if 'in' is null (i.e., it will not return a null InputStream)
-		InputStream in = DAPMNodeService.getInstance(request, db).get(pid);
+		InputStream in = DAPMNodeService.getInstance(request, db, logDb).get(pid);
 
 		/* Here's how they did it in the metacat server; as with describe, optimizing
 		   access to the system metadata via the getSystemMetadata() call and then using
@@ -557,7 +583,7 @@ public class DAPResourceHandler {
 	private void sendReplica(String extra) throws InvalidToken, ServiceFailure, NotFound, InsufficientResources, 
 			NotAuthorized, NotImplemented {
 
-		logDAP.debug("in replica (pid: " + extra + ")...");
+		log.debug("in replica (pid: " + extra + ")...");
 		
 		if (!Settings.getConfiguration().getString("org.opendap.d1.nodeReplicate").equals("true"))
 			throw new NotAuthorized("2182", "This host does not allow replication.");
@@ -566,13 +592,13 @@ public class DAPResourceHandler {
 			dereferenceDapURL(extra);
 			
 		} catch (SQLException e) {
-			logDAP.error("SQL Exception: " + e.getMessage());
+			log.error("SQL Exception: " + e.getMessage());
 			throw new ServiceFailure("2181", e.getMessage());
 		} catch (DAPDatabaseException e) {
-			logDAP.error("DAP Database Exception: " + e.getMessage());
+			log.error("DAP Database Exception: " + e.getMessage());
 			throw new ServiceFailure("2181", e.getMessage());
 		} catch (IOException e) {
-			logDAP.error("Failed to copy a response object to the sevlet's out stream: " + e.getMessage());
+			log.error("Failed to copy a response object to the sevlet's out stream: " + e.getMessage());
 			throw new ServiceFailure("2181", e.getMessage());
 		}
 	}
@@ -595,7 +621,7 @@ public class DAPResourceHandler {
 	 * @throws IOException
 	 */
 	private void sendDescribeObject(String extra) {
-		logDAP.debug("in describe...");
+		log.debug("in describe...");
 	       
         response.setContentType("text/xml");
 
@@ -604,7 +630,7 @@ public class DAPResourceHandler {
 
         DescribeResponse dr = null;
         try {
-        	dr = DAPMNodeService.getInstance(request, db).describe(pid);
+        	dr = DAPMNodeService.getInstance(request, db, logDb).describe(pid);
         } catch (BaseException e) {
         	response.setStatus(e.getCode());
         	response.addHeader("DataONE-Exception-Name", e.getClass().getName());
@@ -657,8 +683,8 @@ public class DAPResourceHandler {
 
 		try {
 			// Hmmm Metacat used this class to parse the URL params, but it seems to assume that 
-			// params should be decided to the local time. E.G. 2014-06-12T00:00:00 becomes
-			// 2014-06-11T18:00:00 here where we are at GMT-6. Our database stores time in GMT,
+			// params should default to the local time. E.G. 2014-06-12T00:00:00 becomes
+			// 2014-06-11T18:00:00 if we are at GMT-6. Our database stores time in GMT,
 			// however, so I think we should perform no time zone conversion. If we need to
 			// change this, make sure to also change the toDate stuff below. jhrg 6/11/14
 			//
@@ -668,7 +694,7 @@ public class DAPResourceHandler {
 				fromDate = DAPD1DateParser.StringToDate(params.get("fromDate")[0]);
 				
 		} catch (Exception e) {
-			logDAP.warn("Could not parse toDate: " + params.get("fromDate")[0]);
+			log.warn("Could not parse toDate: " + params.get("fromDate")[0]);
 			fromDate = null;
 		}
 
@@ -676,7 +702,7 @@ public class DAPResourceHandler {
 			if (params.get("toDate") != null)
 				toDate = DAPD1DateParser.StringToDate(params.get("toDate")[0]);
 		} catch (Exception e) {
-			logDAP.warn("Could not parse toDate: " + params.get("toDate")[0]);
+			log.warn("Could not parse toDate: " + params.get("toDate")[0]);
 			toDate = null;
 		}
 
@@ -691,14 +717,13 @@ public class DAPResourceHandler {
 		if (params.get("count") != null)
 			count = new Integer(params.get("count")[0]).intValue();
 
-		// make the crud call
-		logDAP.debug("List Objects call, fromDate: " + fromDate + " toDate: "
+		log.debug("List Objects call, fromDate: " + fromDate + " toDate: "
 				+ toDate + " formatId: " + formatId + " start: " + start + " count: " + count);
 
 		// replicas == false (never return replicas). This is ignored but we include the 
 		// parameter in this method because the implementation is of an interface and we
 		// must provide a version of all of its methods. jhrg 6/11/14
-		ObjectList ol = DAPMNodeService.getInstance(request, db).listObjects(fromDate, toDate, formatId, false,
+		ObjectList ol = DAPMNodeService.getInstance(request, db, logDb).listObjects(fromDate, toDate, formatId, false,
 				start, count);
 
 		response.setStatus(200);
@@ -707,14 +732,68 @@ public class DAPResourceHandler {
 		TypeMarshaller.marshalTypeToOutputStream(ol, response.getOutputStream());
 	}
 
+	private void sendLogEntries(Hashtable<String, String[]> params2) 
+			throws InvalidRequest, InvalidToken, NotAuthorized, NotImplemented, ServiceFailure, JiBXException, IOException {
+		// call listObjects with specified params
+		Date fromDate = null;
+		Date toDate = null;
+		Event event = null;
+		String idFilter = null;
+		
+		int start = 0;
+		int count = DEFAULT_COUNT;
+
+		try {
+			if (params.get("fromDate") != null)
+				fromDate = DAPD1DateParser.StringToDate(params.get("fromDate")[0]);
+				
+		} catch (Exception e) {
+			log.warn("Could not parse toDate: " + params.get("fromDate")[0]);
+			fromDate = null;
+		}
+
+		try {
+			if (params.get("toDate") != null)
+				toDate = DAPD1DateParser.StringToDate(params.get("toDate")[0]);
+		} catch (Exception e) {
+			log.warn("Could not parse toDate: " + params.get("toDate")[0]);
+			toDate = null;
+		}
+
+		if (params.get("event") != null) {
+			Event.convert(params.get("event")[0]);
+		}
+
+		if (params.get("idFilter") != null) {
+			idFilter = params.get("idFilter")[0];
+		}
+		
+		if (params.get("start") != null)
+			start = new Integer(params.get("start")[0]).intValue();
+
+		if (params.get("count") != null)
+			count = new Integer(params.get("count")[0]).intValue();
+
+		log.debug("List log entries call, fromDate: " + fromDate + " toDate: " + toDate + " event: " + event 
+				+ " idFilter: " + idFilter + " start: " + start + " count: " + count);
+
+		Log D1Log = DAPMNodeService.getInstance(request, db, logDb).getLogRecords(fromDate, toDate, event, idFilter,
+				start, count);
+
+		response.setStatus(200);
+		response.setContentType("text/xml");
+		// Serialize and write it to the output stream
+		TypeMarshaller.marshalTypeToOutputStream(D1Log, response.getOutputStream());
+	}
+
 	private void sendChecksum(String extra, String algorithm) throws InvalidRequest, InvalidToken, NotAuthorized,
 			NotImplemented, ServiceFailure, NotFound, JiBXException, IOException {
-		logDAP.debug("in checksum...");
+		log.debug("in checksum...");
 
 		Identifier pid = new Identifier();
 		pid.setValue(extra);
 		
-		Checksum c = DAPMNodeService.getInstance(request, db).getChecksum(pid, algorithm);
+		Checksum c = DAPMNodeService.getInstance(request, db, logDb).getChecksum(pid, algorithm);
 
 		response.setContentType("text/xml");
 		response.setStatus(200);
@@ -775,7 +854,7 @@ public class DAPResourceHandler {
 	 */
 	private void printError(String message, HttpServletResponse response) {
 		try {
-			logDAP.error("D1ResourceHandler: Printing error to servlet response: " + message);
+			log.error("D1ResourceHandler: Printing error to servlet response: " + message);
 			PrintWriter out = response.getWriter();
 			response.setContentType("text/xml");
 			out.println("<?xml version=\"1.0\"?>");
@@ -798,14 +877,14 @@ public class DAPResourceHandler {
 		response.setContentType("text/xml");
 		response.setStatus(e.getCode());
 
-		logDAP.error("D1ResourceHandler: Serializing exception with code "
+		log.error("D1ResourceHandler: Serializing exception with code "
 				+ e.getCode() + ": " + e.getMessage());
 		e.printStackTrace();
 
 		try {
 			IOUtils.write(e.serialize(BaseException.FMT_XML), out);
 		} catch (IOException e1) {
-			logDAP.error("Error writing exception to stream. "
+			log.error("Error writing exception to stream. "
 					+ e1.getMessage());
 		}
 	}

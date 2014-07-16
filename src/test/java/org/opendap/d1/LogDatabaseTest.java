@@ -258,4 +258,33 @@ public class LogDatabaseTest extends TestCase {
 		}
 	}
 
+	/**
+	 * Test if  "WHERE 'string%' LIKE identifier" works.
+	 * 
+	 * Test method for {@link org.opendap.d1.LogDatabase#getMatchingLogEntries(java.lang.String, int, int)}.
+	 */
+	public final void testGetMatchingLogEntries4() {
+		LogDatabase db = null;
+		try {
+			db = new LogDatabase("LogTest.db", "testNodeId");
+			
+			assertTrue("The log database empty.db shouldbe valid after creation", db.isValid());
+			assertEquals("There should be 4 rows in the Log before addEntry is called", 4, db.count());
+		} catch (Exception e1) {
+			e1.printStackTrace();
+			fail("failed to open the test database");
+		}
+
+		try {
+			Log logLines = db.getMatchingLogEntries("where PID like 'P%'", 0, 10);
+			assertEquals("There should be 4 log lines", 4, logLines.sizeLogEntryList());
+		} catch (SQLException e) {
+			e.printStackTrace();
+			fail("getMatchingLogEntries threw SQLException: " + e.getMessage());
+		} catch (DAPDatabaseException e) {
+			e.printStackTrace();
+			fail("getMatchingLogEntries threw DAPDatabaseException" + e.getMessage());
+		}
+	}
+
 }

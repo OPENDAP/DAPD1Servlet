@@ -59,7 +59,8 @@ public class DAPRestServlet extends HttpServlet {
 	 */
 	private static final long serialVersionUID = 1L;
 	
-	protected Logger logDAP;
+	private static Logger log = LoggerFactory.getLogger(DAPRestServlet.class);;
+	
     protected DAPResourceHandler resourceHandler;
 
     /**
@@ -76,7 +77,7 @@ public class DAPRestServlet extends HttpServlet {
 		try {
 			handler = new DAPResourceHandler(getServletContext(), request, response);
 		} catch (DAPDatabaseException e) {
-			logDAP.error("Database access failure: " + e.getMessage());
+			log.error("Database access failure: " + e.getMessage());
 			throw new ServletException(e);
 		}
 
@@ -92,8 +93,6 @@ public class DAPRestServlet extends HttpServlet {
 	 */
     @Override
     public void init(ServletConfig config) throws ServletException {
-        logDAP = LoggerFactory.getLogger(this.getClass());
-
         super.init(config);
     }
 
@@ -121,7 +120,7 @@ public class DAPRestServlet extends HttpServlet {
      */
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-        logDAP.debug("HTTP Verb: GET");
+        log.debug("HTTP Verb: GET");
         
         resourceHandler = createHandler(request, response);
         resourceHandler.handle(DAPResourceHandler.GET);
@@ -132,7 +131,7 @@ public class DAPRestServlet extends HttpServlet {
      */
     @Override
     protected void doHead(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-    	logDAP.debug("HTTP Verb: HEAD");
+    	log.debug("HTTP Verb: HEAD");
     	 
         resourceHandler = createHandler(request, response);
         resourceHandler.handle(DAPResourceHandler.HEAD);
@@ -143,7 +142,7 @@ public class DAPRestServlet extends HttpServlet {
      */
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-    	logDAP.debug("HTTP Verb: POST");
+    	log.debug("HTTP Verb: POST");
    	 
         resourceHandler = createHandler(request, response);
         resourceHandler.handle(DAPResourceHandler.POST);
