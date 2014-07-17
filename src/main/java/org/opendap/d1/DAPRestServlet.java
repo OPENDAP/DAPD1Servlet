@@ -59,10 +59,21 @@ public class DAPRestServlet extends HttpServlet {
 	 */
 	private static final long serialVersionUID = 1L;
 	
-	private static Logger log = LoggerFactory.getLogger(DAPRestServlet.class);;
+	private static Logger log = LoggerFactory.getLogger(DAPRestServlet.class);
 	
     protected DAPResourceHandler resourceHandler;
 
+    /*
+    This will make a shared connection pool that can be accessed by any thread 
+    that tomcat starts. In the init() method, load this up with connections to 
+    the database. Of course, this code will need two of these...
+    
+    static LinedQueue lq;
+    static {
+    	lq = new LinkedQueue();
+    }
+    */
+    
     /**
      * Subclasses should override this method to provide the appropriate resourceHandler subclass
      * @param request

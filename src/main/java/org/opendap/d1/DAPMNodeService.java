@@ -467,6 +467,7 @@ public class DAPMNodeService implements MNCore, MNRead {
 		}
 	}
 
+	// FIXME Sql injection
 	/**
 	 * Build a SQL 'where clause' that can be used to select just what the client wants.
 	 * 
@@ -503,6 +504,7 @@ public class DAPMNodeService implements MNCore, MNRead {
 		return where;
 	}
 
+	// FIXME Sql injection
 	private String buildLogEntriesWhereClause(Date fromDate, Date toDate, Event event, String idFilter) {
 		
 		String and = "";
@@ -680,7 +682,7 @@ public class DAPMNodeService implements MNCore, MNRead {
 			throws InvalidRequest, InvalidToken, NotAuthorized, NotImplemented, ServiceFailure {
 
 		String where = buildLogEntriesWhereClause(fromDate, toDate, event, idFilter);
-		log.debug("In listObjects; where clause: " + where);
+		log.debug("In getLogRecords; where clause: " + where);
 
 		try {
 			return logDb.getMatchingLogEntries(where, start, count);

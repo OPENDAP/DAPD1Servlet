@@ -400,25 +400,17 @@ public class DAPResourceHandler {
 			// check for session-based certificate from the portal
 			try {
 				// FIXME: configurationFileName is null.
-				String configurationFileName = servletContext
-						.getInitParameter("oa4mp:client.config.file");
-				String configurationFilePath = servletContext
-						.getRealPath(configurationFileName);
-				PortalCertificateManager portalManager = new PortalCertificateManager(
-						configurationFilePath);
-				log.debug("Initialized the PortalCertificateManager using config file: "
-						+ configurationFilePath);
-				X509Certificate certificate = portalManager
-						.getCertificate(request);
+				String configurationFileName = servletContext.getInitParameter("oa4mp:client.config.file");
+				String configurationFilePath = servletContext.getRealPath(configurationFileName);
+				PortalCertificateManager portalManager = new PortalCertificateManager(configurationFilePath);
+				log.debug("Initialized the PortalCertificateManager using config file: "+ configurationFilePath);
+				X509Certificate certificate = portalManager.getCertificate(request);
 				log.debug("Retrieved certificate: " + certificate);
 				PrivateKey key = portalManager.getPrivateKey(request);
 				log.debug("Retrieved key: " + key);
 				if (certificate != null && key != null) {
-					request.setAttribute(
-							"javax.servlet.request.X509Certificate",
-							certificate);
-					log.debug("Added certificate to the request: "
-							+ certificate.toString());
+					request.setAttribute("javax.servlet.request.X509Certificate", certificate);
+					log.debug("Added certificate to the request: " + certificate.toString());
 				}
 
 				// reload session from certificate that we jsut set in request
