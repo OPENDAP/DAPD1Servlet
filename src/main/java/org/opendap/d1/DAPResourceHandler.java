@@ -201,6 +201,7 @@ public class DAPResourceHandler {
 			// FIXME getSession();
 
 			// initialize the parameters
+			// TODO Move this to the parts of the API that actually have parameters?
 			params = new Hashtable<String, String[]>();
 			initParams();
 
@@ -722,7 +723,7 @@ public class DAPResourceHandler {
 		TypeMarshaller.marshalTypeToOutputStream(ol, response.getOutputStream());
 	}
 
-	private void sendLogEntries(Hashtable<String, String[]> params2) 
+	private void sendLogEntries(Hashtable<String, String[]> params) 
 			throws InvalidRequest, InvalidToken, NotAuthorized, NotImplemented, ServiceFailure, JiBXException, IOException {
 		// call listObjects with specified params
 		Date fromDate = null;
@@ -751,7 +752,7 @@ public class DAPResourceHandler {
 		}
 
 		if (params.get("event") != null) {
-			Event.convert(params.get("event")[0]);
+			event = Event.convert(params.get("event")[0]);
 		}
 
 		if (params.get("idFilter") != null) {
