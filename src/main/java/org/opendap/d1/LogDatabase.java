@@ -325,12 +325,22 @@ public class LogDatabase {
 		ResultSet rs = null;
 		
 		try {
-			String querySQL = "SELECT * FROM Log " + where + " ORDER BY ROWID;";
-			rs = stmt.executeQuery(querySQL);
-			// rs.absolute(start+1); this does not work with SQLite
 			
 			Log D1Log = new Log();
 			
+			D1Log.setStart(start);
+			
+			int rows = 0;
+			rs = stmt.executeQuery("SELECT COUNT(*) FROM Log");
+			while (rs.next()) {
+				rows = rs.getInt(1);
+			}
+			D1Log.setTotal(rows);
+			
+			String querySQL = "SELECT * FROM Log " + where + " ORDER BY ROWID;";
+			rs = stmt.executeQuery(querySQL);
+			// rs.absolute(start+1); this does not work with SQLite
+
 			int i = 0;
 			while (rs.next()) {
 				++i;
@@ -367,6 +377,8 @@ public class LogDatabase {
 				// This takes the current row from the DB and stuffs it in the DataONE Log object.
 				D1Log.addLogEntry(entry);
 			}
+			
+			D1Log.setCount(i - start);
 			
 			return D1Log;
 			
