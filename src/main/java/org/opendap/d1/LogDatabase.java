@@ -342,6 +342,7 @@ public class LogDatabase {
 			// rs.absolute(start+1); this does not work with SQLite
 
 			int i = 0;
+			int lines = 0;
 			while (rs.next()) {
 				++i;
 				if (i <= start)
@@ -349,6 +350,7 @@ public class LogDatabase {
 				if (i > start + count)
 					break;
 
+				++lines;
 				LogEntry entry = new LogEntry();
 				// TODO Can use index numbers; 1s indexing is used by JDBC; faster than names
 				Long entryId = rs.getLong("entryId");
@@ -378,7 +380,8 @@ public class LogDatabase {
 				D1Log.addLogEntry(entry);
 			}
 			
-			D1Log.setCount(i - start);
+			log.debug("Processed log request: {}, computed total: {}", lines, i-start);
+			D1Log.setCount(lines);
 			
 			return D1Log;
 			
