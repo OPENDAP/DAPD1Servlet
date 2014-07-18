@@ -26,8 +26,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintWriter;
-import java.security.PrivateKey;
-import java.security.cert.X509Certificate;
 import java.sql.SQLException;
 import java.util.Date;
 import java.util.Enumeration;
@@ -41,7 +39,6 @@ import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.io.IOUtils;
 import org.dataone.client.auth.CertificateManager;
 import org.dataone.configuration.Settings;
-import org.dataone.portal.PortalCertificateManager;
 import org.dataone.service.exceptions.BaseException;
 import org.dataone.service.exceptions.InsufficientResources;
 import org.dataone.service.exceptions.InvalidRequest;
@@ -402,6 +399,7 @@ public class DAPResourceHandler {
 				// FIXME: configurationFileName is null.
 				String configurationFileName = servletContext.getInitParameter("oa4mp:client.config.file");
 				String configurationFilePath = servletContext.getRealPath(configurationFileName);
+				/*
 				PortalCertificateManager portalManager = new PortalCertificateManager(configurationFilePath);
 				log.debug("Initialized the PortalCertificateManager using config file: "+ configurationFilePath);
 				X509Certificate certificate = portalManager.getCertificate(request);
@@ -412,7 +410,7 @@ public class DAPResourceHandler {
 					request.setAttribute("javax.servlet.request.X509Certificate", certificate);
 					log.debug("Added certificate to the request: " + certificate.toString());
 				}
-
+				*/
 				// reload session from certificate that we jsut set in request
 				session = CertificateManager.getInstance().getSession(request);
 			} catch (Throwable t) {

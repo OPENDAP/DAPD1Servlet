@@ -88,6 +88,15 @@
       <url>http://download.java.net/maven/2/</url>
       <layout>default</layout>
     </repository>
+    
+    <!-- Added this because the DataONE libs are not yet in Maven central -->
+    <repository>
+      <releases><enabled>true</enabled></releases>
+      <snapshots><enabled>true</enabled></snapshots>
+      <id>dataone.org</id>
+      <url>http://dev-testing.dataone.org/maven</url>
+    </repository>
+      
   </repositories>
 
   <dependencies>
@@ -133,12 +142,30 @@
       <version>1.2.17</version>
     </dependency -->
 
-    <dependency>            
+    <!-- dependency>            
       <artifactId>d1_portal</artifactId>
       <groupId>org.dataone</groupId>
       <version>1.3.0-SNAPSHOT</version>
       <type>jar</type>
+    </dependency -->
+    
+    <!-- replace the above with these two deps since the 'portal' code has lots of
+      stuff the D1 folks tell me is not needed for a MN. (d1_libclient_java and 
+      d1_common_java) -->
+    <dependency>            
+      <artifactId>d1_libclient_java</artifactId>
+      <groupId>org.dataone</groupId>
+      <version>1.3.0-SNAPSHOT</version>
+      <type>jar</type>
     </dependency>
+    
+    <dependency>            
+      <artifactId>d1_common_java</artifactId>
+      <groupId>org.dataone</groupId>
+      <version>1.3.0-SNAPSHOT</version>
+      <type>jar</type>
+    </dependency>
+    
   </dependencies>
 
 </project>
