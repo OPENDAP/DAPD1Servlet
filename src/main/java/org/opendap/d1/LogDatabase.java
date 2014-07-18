@@ -378,7 +378,7 @@ public class LogDatabase {
 				D1Log.addLogEntry(entry);
 			}
 			
-			D1Log.setCount(i - start);
+			D1Log.setCount(i - start - 1);
 			
 			return D1Log;
 			
