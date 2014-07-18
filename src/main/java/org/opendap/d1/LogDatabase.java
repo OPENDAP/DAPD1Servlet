@@ -26,7 +26,6 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.text.ParseException;
 import java.util.Arrays;
 import java.util.Date;
@@ -122,7 +121,7 @@ public class LogDatabase {
 	 * @throws SQLException Thrown if the tables already exist
 	 */
 	protected void initTables() throws SQLException {
-		Statement stmt = c.createStatement();
+		PreparedStatement stmt = null; // c.createStatement();
 
 		try {
 			String sql = "CREATE TABLE Log "
@@ -134,31 +133,35 @@ public class LogDatabase {
 					+ " event	 	TEXT NOT NULL,"
 					+ " dateLogged 	TEXT NOT NULL,"
 					+ " nodeId 		TEXT NOT NULL)";
-			stmt.executeUpdate(sql);
+			stmt = c.prepareStatement(sql);
+			stmt.executeUpdate();
 			
 		} catch (SQLException e) {
 			log.error("Failed to create new log database table ({}).", dbName);
 			throw e;
 		} finally {
-			stmt.close();			
+			if (stmt != null)
+				stmt.close();			
 		}
 
 		log.debug("Made log database table successfully ({}).", dbName);
 	}
 	
 	/**
-	 * Used by the unit tests
-	 * @return the number of rows
+	 * Total number of rows in the log, given the conditions in the 'where' clause.
+	 * @return The number of rows
 	 * @throws SQLException
 	 */
-	public long count() throws SQLException {
-		Statement stmt = c.createStatement();
+	public int count(String where) throws SQLException {
+		PreparedStatement stmt = null; //c.createStatement();
 		ResultSet rs = null;
 		try {
-			long rows = 0;
-			rs = stmt.executeQuery("SELECT COUNT(*) FROM Log;");
+			// FIXME SQL injection at 'where'.
+			stmt = c.prepareStatement("SELECT COUNT(*) FROM Log " + where + ";");
+			rs = stmt.executeQuery();
+			int rows = 0;
 			while (rs.next()) {
-				rows = rs.getLong("COUNT(*)");
+				rows = rs.getInt(1);
 			}
 
 			return rows;
@@ -167,40 +170,47 @@ public class LogDatabase {
 			log.error("Failed to count the Log table ({}): {}", dbName, e.getMessage());
 			throw e;
 		} finally {
-			rs.close();
-			stmt.close();
+			if (rs != null)
+				rs.close();
+			if (stmt != null)
+				stmt.close();
 		}
+	}
+
+	public int count() throws SQLException {
+		return count("");
 	}
 
 	/**
 	 * Is this database valid?
 	 *
 	 * Checks to see that the database has a 'Log' table and only that. Does not
-	 * do any other testing.
+	 * do any other testing. This will return false under normal circumstances
+	 * when the log DB has not yet been created.
 	 * 
 	 * @return True if the database passes the test, false otherwise.
 	 * @throws SQLException
 	 */
 	public boolean isValid() throws SQLException {
-		final Set<String> tableNames 
-			= new HashSet<String>(Arrays.asList("Log"));
+		final Set<String> tableNames = new HashSet<String>(Arrays.asList("Log"));
 		
-		Statement stmt = c.createStatement();
-		String sql = "SELECT name FROM sqlite_master WHERE type='table';";
+		PreparedStatement stmt = null; //c.createStatement();
 		ResultSet rs = null;
 		try {
-			rs = stmt.executeQuery(sql);
+			//String sql = "SELECT name FROM sqlite_master WHERE type='table';";
+			stmt = c.prepareStatement("SELECT name FROM sqlite_master WHERE type='table';");
+			rs = stmt.executeQuery();
 			int count = 0;
 			while (rs.next()) {
 				count++;
 				String name = rs.getString("name");
 				if (!tableNames.contains(name)) {
-					log.error("Database failed validity test; does not have table: " + name);
+					log.debug("Database failed validity test; does not have table: {}", name);
 					return false;
 				}
 			}
 			if (count != tableNames.size()) {
-				log.error("Database failed validity test; does not have the required tables.");
+				log.debug("Database failed validity test; does not have the required tables.");
 				return false;
 			}
 			
@@ -211,8 +221,10 @@ public class LogDatabase {
 			throw e;
 		}
 		finally {
-			rs.close();
-			stmt.close();
+			if (rs != null)
+				rs.close();
+			if (stmt != null)
+				stmt.close();
 		}		
 	}
 	
@@ -245,9 +257,6 @@ public class LogDatabase {
 		// with each insertion operation.
 		
 		String now8601 = DAPD1DateParser.DateToString(new Date());
-		//String sql = "INSERT INTO Log (PID,ipAddress,userAgent,subject,event,dateLogged,nodeId) "
-		//		+ "VALUES ('" + PID + "','" + ipAddress + "','" + userAgent + "','public','" + event + "','"
-		//		+ now8601 + "','" + nodeId + "');";
 		stmt = c.prepareStatement("INSERT INTO Log (PID,ipAddress,userAgent,subject,event,dateLogged,nodeId) VALUES (?, ?, ?, 'public', ?, ?, ?);");
 		stmt.setString(1, PID);
 		stmt.setString(2, ipAddress);
@@ -255,8 +264,6 @@ public class LogDatabase {
 		stmt.setString(4, event);
 		stmt.setString(5, now8601);
 		stmt.setString(6, nodeId);
-		
-		//log.debug("SQL Statement: {}", sql);
 		
 		try {
 			stmt.executeUpdate();
@@ -279,11 +286,11 @@ public class LogDatabase {
 	 * @throws SQLException
 	 */
 	public void dump() throws SQLException {
-		Statement stmt = c.createStatement();
+		PreparedStatement stmt = null; // c.createStatement();
 		ResultSet rs = null;
 		try {
-			String sql = "SELECT * FROM Log ORDER BY ROWID;";
-			rs = stmt.executeQuery(sql);
+			stmt = c.prepareStatement("SELECT * FROM Log ORDER BY ROWID;");
+			rs = stmt.executeQuery();
 			while (rs.next()) {
 				System.out.println("entryId = " + rs.getString("entryId"));
 				System.out.println("PID = " + rs.getString("PID"));
@@ -300,8 +307,10 @@ public class LogDatabase {
 			log.error("Failed to dump log database ({}).", dbName);
 			throw e;
 		} finally {
-			rs.close();
-			stmt.close();
+			if (rs != null)
+				rs.close();
+			if (stmt != null)
+				stmt.close();
 		}
 	}
 		
@@ -321,7 +330,7 @@ public class LogDatabase {
 	 * @throws DAPDatabaseException
 	 */
 	public Log getMatchingLogEntries(String where, int start, int count) throws SQLException, DAPDatabaseException {
-		Statement stmt = c.createStatement();
+		PreparedStatement stmt = null; //c.createStatement();
 		ResultSet rs = null;
 		
 		try {
@@ -329,16 +338,18 @@ public class LogDatabase {
 			Log D1Log = new Log();
 			
 			D1Log.setStart(start);
-			
+			/*
 			int rows = 0;
-			rs = stmt.executeQuery("SELECT COUNT(*) FROM Log");
+			rs = stmt.executeQuery("SELECT COUNT(*) FROM Log" + where + ";");
 			while (rs.next()) {
 				rows = rs.getInt(1);
 			}
-			D1Log.setTotal(rows);
+			*/
+			D1Log.setTotal(count(where));
 			
-			String querySQL = "SELECT * FROM Log " + where + " ORDER BY ROWID;";
-			rs = stmt.executeQuery(querySQL);
+			//String querySQL = "SELECT * FROM Log " + where + " ORDER BY ROWID;";
+			stmt = c.prepareStatement("SELECT * FROM Log " + where + " ORDER BY ROWID;");
+			rs = stmt.executeQuery();
 			// rs.absolute(start+1); this does not work with SQLite
 
 			while (start-- > 0 && rs.next());

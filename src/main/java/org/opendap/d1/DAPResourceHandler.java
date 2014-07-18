@@ -73,7 +73,7 @@ import org.slf4j.LoggerFactory;
  * 
  * MNCore -- Partly 
  * ping() - GET /d1/mn/monitor/v1/ping (done)
- * log() - GET /d1/mn/v1/log 
+ * log() - GET /d1/mn/v1/log (done)
  * getCapabilities() - GET /d1/mn/ and /d1/mn/v1/node (done)
  * 
  * MNRead -- Partly 
@@ -82,7 +82,7 @@ import org.slf4j.LoggerFactory;
  * getReplica() - GET /replica/PID (done)
  * describe() - HEAD /d1/mn/v1/object/PID (done)
  * getChecksum() - GET /d1/mn/v1/checksum/PID (done)
- * listObjects() - GET /d1/mn/v1/object
+ * listObjects() - GET /d1/mn/v1/object (done)
  * synchronizationFailed() - POST /d1/mn/v1/error
  * 
  * @author James Gallagher, after Ben Leinfelder
@@ -130,11 +130,8 @@ public class DAPResourceHandler {
 	protected LogDatabase logDb;
 	
 	/// The query string params
-	protected Hashtable<String, String[]> params;
+	//protected Hashtable<String, String[]> params;
 	
-	protected String ipAddress = "";
-	protected String userAgent = "";
-
 	// D1 certificate-based authentication
 	protected Session session;
 
@@ -151,14 +148,11 @@ public class DAPResourceHandler {
 		this.request = request;
 		this.response = response;
 		
-		this.ipAddress = request.getRemoteAddr();
-		this.userAgent = request.getHeader("user-agent");
-		
 		try {
 			Settings.augmentConfiguration(OPENDAP_PROPERTIES);
 		}
 		catch (ConfigurationException ce) {
-			log.error("Failed to read the config file: " + OPENDAP_PROPERTIES);
+			log.error("Failed to read the config file: {}", OPENDAP_PROPERTIES);
 		}
 
 		String dbName = Settings.getConfiguration().getString("org.opendap.d1.DatasetsDatabaseName");
@@ -202,8 +196,8 @@ public class DAPResourceHandler {
 
 			// initialize the parameters
 			// TODO Move this to the parts of the API that actually have parameters?
-			params = new Hashtable<String, String[]>();
-			initParams();
+			//params = new Hashtable<String, String[]>();
+			//initParams();
 
 			try {
 				// get the resource
@@ -269,10 +263,14 @@ public class DAPResourceHandler {
 					log.debug("verb:" + httpVerb);
 
 					if (httpVerb == GET) {
-						if (extra == null || extra.isEmpty())
+						if (extra == null || extra.isEmpty()) {
+							Hashtable<String, String[]>params = new Hashtable<String, String[]>();
+							initParams(params);
+
 							sendListObjects(params);
+						}
 						else {
-							logDb.addEntry(extra, ipAddress, userAgent, "read");
+							logDb.addEntry(extra, request.getRemoteAddr(), request.getHeader("user-agent"), "read");
 							sendObject(extra);
 						}
 						status = true;
@@ -284,6 +282,9 @@ public class DAPResourceHandler {
 					log.debug("Using resource '" + RESOURCE_LOG + "'");
 					// handle log events
 					if (httpVerb == GET) {
+						Hashtable<String, String[]>params = new Hashtable<String, String[]>();
+						initParams(params);
+
 						sendLogEntries(params);
 						status = true;
 					}
@@ -382,8 +383,6 @@ public class DAPResourceHandler {
 	 * null. This method was made simply to reduce clutter in the
 	 * handle() method.
 	 * 
-	 * FIXME configurationFileName is null so this code fails. 5/20/14
-	 * 
 	 * @throws InvalidToken
 	 */
 	@SuppressWarnings("unused")
@@ -432,8 +431,7 @@ public class DAPResourceHandler {
 	 * @throws NotAuthorized
 	 * @throws NotImplemented
 	 */
-	private void sendNodeResponse() throws JiBXException, IOException,
-			NotImplemented, NotAuthorized, ServiceFailure, InvalidRequest {
+	private void sendNodeResponse() throws JiBXException, IOException, NotImplemented, NotAuthorized, ServiceFailure, InvalidRequest {
 		log.debug("in node...");
 
 		Node n = DAPMNodeService.getInstance(request, db, logDb).getCapabilities();
@@ -443,8 +441,7 @@ public class DAPResourceHandler {
 		TypeMarshaller.marshalTypeToOutputStream(n, response.getOutputStream());
 	}
 
-	private void sendSysmetaResponse(String extra) throws InvalidToken, NotAuthorized, 
-			NotImplemented, ServiceFailure, NotFound, JiBXException, IOException {
+	private void sendSysmetaResponse(String extra) throws InvalidToken, NotAuthorized, NotImplemented, ServiceFailure, NotFound, JiBXException, IOException {
 		log.debug("in sysmeta...");
 
 		Identifier pid = new Identifier();
@@ -473,19 +470,19 @@ public class DAPResourceHandler {
 	 */
 	private void sendObject(String extra) throws InvalidToken, ServiceFailure, NotFound, InsufficientResources, 
 			NotAuthorized, NotImplemented {
+		log.debug("in object (pid: {})...", extra);
 		
-		log.debug("in object (pid: " + extra + ")...");
 		try {
 			dereferenceDapURL(extra);
 			
 		} catch (SQLException e) {
-			log.error("SQL Exception: " + e.getMessage());
+			log.error("SQL Exception: {}", e.getMessage());
 			throw new ServiceFailure("1030", e.getMessage());
 		} catch (DAPDatabaseException e) {
-			log.error("DAP Database Exception: " + e.getMessage());
+			log.error("DAP Database Exception: {}", e.getMessage());
 			throw new ServiceFailure("1030", e.getMessage());
 		} catch (IOException e) {
-			log.error("Failed to copy a response object to the sevlet's out stream: " + e.getMessage());
+			log.error("Failed to copy a response object to the sevlet's out stream: {}", e.getMessage());
 			throw new ServiceFailure("1030", e.getMessage());
 		}
 	}
@@ -514,7 +511,7 @@ public class DAPResourceHandler {
 		Identifier pid = new Identifier();
 		pid.setValue(extra);
 		
-		// get(pid) throws if 'in' is null (i.e., it will not return a null InputStream)
+		// get(pid) throws if 'pid' is null (i.e., it will not return a null InputStream)
 		InputStream in = DAPMNodeService.getInstance(request, db, logDb).get(pid);
 
 		/* Here's how they did it in the metacat server; as with describe, optimizing
@@ -574,7 +571,7 @@ public class DAPResourceHandler {
 	private void sendReplica(String extra) throws InvalidToken, ServiceFailure, NotFound, InsufficientResources, 
 			NotAuthorized, NotImplemented {
 
-		log.debug("in replica (pid: " + extra + ")...");
+		log.debug("in replica (pid: {})...", extra);
 		
 		if (!Settings.getConfiguration().getString("org.opendap.d1.nodeReplicate").equals("true"))
 			throw new NotAuthorized("2182", "This host does not allow replication.");
@@ -583,13 +580,13 @@ public class DAPResourceHandler {
 			dereferenceDapURL(extra);
 			
 		} catch (SQLException e) {
-			log.error("SQL Exception: " + e.getMessage());
+			log.error("SQL Exception: {}", e.getMessage());
 			throw new ServiceFailure("2181", e.getMessage());
 		} catch (DAPDatabaseException e) {
-			log.error("DAP Database Exception: " + e.getMessage());
+			log.error("DAP Database Exception: {}", e.getMessage());
 			throw new ServiceFailure("2181", e.getMessage());
 		} catch (IOException e) {
-			log.error("Failed to copy a response object to the sevlet's out stream: " + e.getMessage());
+			log.error("Failed to copy a response object to the sevlet's out stream: {}", e.getMessage());
 			throw new ServiceFailure("2181", e.getMessage());
 		}
 	}
@@ -822,7 +819,7 @@ public class DAPResourceHandler {
 	 * native metacat handler functions
 	 */
 	@SuppressWarnings({ "rawtypes" })
-	private void initParams() {
+	private void initParams(Hashtable<String, String[]>params) {
 
 		String name = null;
 		String[] value = null;
