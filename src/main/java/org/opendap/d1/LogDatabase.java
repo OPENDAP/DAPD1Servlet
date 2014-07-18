@@ -355,8 +355,7 @@ public class LogDatabase {
 				subject.setValue(rs.getString("subject"));
 				entry.setSubject(subject);
 				
-				Event event = null;
-				Event.convert(rs.getString("event"));
+				Event event = Event.convert(rs.getString("event"));
 				entry.setEvent(event);
 				
 				entry.setDateLogged(DAPD1DateParser.StringToDate(rs.getString("dateLogged")));
