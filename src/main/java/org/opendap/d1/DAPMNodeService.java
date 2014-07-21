@@ -610,14 +610,14 @@ public class DAPMNodeService implements MNCore, MNRead {
 	 * @return A D1 Log object with the requested Log Entries.
 	 */
 	// @Override
-	public Log getLogRecords(Date fromDate, Date toDate, Event event, String idFilter, Integer start, Integer count) 
+	public Log getLogRecords(Date fromDate, Date toDate, Event event, String pidFilter, Integer start, Integer count) 
 			throws InvalidRequest, InvalidToken, NotAuthorized, NotImplemented, ServiceFailure {
 		/*
 		String where = buildLogEntriesWhereClause(fromDate, toDate, event, idFilter);
 		log.debug("In getLogRecords; where clause: " + where);
 		*/
 		try {
-			return logDb.getMatchingLogEntries(fromDate, toDate, event, idFilter, start, count);
+			return logDb.getMatchingLogEntries(fromDate, toDate, event, pidFilter, start, count);
 		} catch (Exception e) {
 			throw new ServiceFailure("1490", "Encountered an Exception while accessing the log: " + e.getMessage());
 		}

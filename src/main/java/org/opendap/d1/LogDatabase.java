@@ -154,12 +154,12 @@ public class LogDatabase {
 	 * @param fromDate
 	 * @param toDate
 	 * @param event
-	 * @param idFilter
+	 * @param pidFilter
 	 * @param suffix Stuff to put at the end of the SQL like ';' or 'ORDER BY...'
 	 * @return
 	 */
-	private String buildLogAccessWhereClause(String baseSQL, Date fromDate, Date toDate, Event event, String idFilter, String suffix) {
-		if (fromDate != null || toDate != null || event != null || idFilter != null) {
+	private String buildLogAccessWhereClause(String baseSQL, Date fromDate, Date toDate, Event event, String pidFilter, String suffix) {
+		if (fromDate != null || toDate != null || event != null || pidFilter != null) {
 			baseSQL += " where";
 			String and = "";
 			if (fromDate != null) {
@@ -174,7 +174,7 @@ public class LogDatabase {
 				baseSQL += and + " event = ?";
 				and = " and";
 			}
-			if (idFilter != null) {
+			if (pidFilter != null) {
 				baseSQL += and + " PID like ?";
 			}
 		}
@@ -187,11 +187,11 @@ public class LogDatabase {
 	 * @param fromDate
 	 * @param toDate
 	 * @param event
-	 * @param idFilter
+	 * @param pidFilter
 	 * @param stmt
 	 * @throws SQLException
 	 */
-	private void populateLogAccessWhereClause(Date fromDate, Date toDate, Event event, String idFilter, PreparedStatement stmt)
+	private void populateLogAccessWhereClause(Date fromDate, Date toDate, Event event, String pidFilter, PreparedStatement stmt)
 			throws SQLException {
 		int position = 1; // SQL uses ones-indexing
 		if (fromDate != null)
@@ -200,8 +200,8 @@ public class LogDatabase {
 			stmt.setString(position++, DAPD1DateParser.DateToString(toDate));
 		if (event != null)
 			stmt.setString(position++, event.toString());
-		if (idFilter != null)
-			stmt.setString(position, idFilter + "%");
+		if (pidFilter != null)
+			stmt.setString(position, pidFilter + "%");
 	}
 
 	/**
@@ -209,16 +209,16 @@ public class LogDatabase {
 	 * @return The number of rows
 	 * @throws SQLException
 	 */
-	public int count(Date fromDate, Date toDate, Event event, String idFilter) throws SQLException {
+	public int count(Date fromDate, Date toDate, Event event, String pidFilter) throws SQLException {
 		PreparedStatement stmt = null; //c.createStatement();
 		ResultSet rs = null;
 		try {
 			// tedious, yes, but better than an SQL injection attack!
-			String sql = buildLogAccessWhereClause("SELECT COUNT(*) FROM Log", fromDate, toDate, event, idFilter, ";");
+			String sql = buildLogAccessWhereClause("SELECT COUNT(*) FROM Log", fromDate, toDate, event, pidFilter, ";");
 
 			stmt = c.prepareStatement(sql);
 			
-			populateLogAccessWhereClause(fromDate, toDate, event, idFilter, stmt);
+			populateLogAccessWhereClause(fromDate, toDate, event, pidFilter, stmt);
 			
 			rs = stmt.executeQuery();
 			int rows = 0;
@@ -391,7 +391,7 @@ public class LogDatabase {
 	 * @throws SQLException
 	 * @throws DAPDatabaseException
 	 */
-	public Log getMatchingLogEntries(Date fromDate, Date toDate, Event event, String idFilter, int start, int count) 
+	public Log getMatchingLogEntries(Date fromDate, Date toDate, Event event, String pidFilter, int start, int count) 
 			throws SQLException, DAPDatabaseException {
 		PreparedStatement stmt = null; //c.createStatement();
 		ResultSet rs = null;
@@ -401,12 +401,12 @@ public class LogDatabase {
 			Log D1Log = new Log();
 			
 			D1Log.setStart(start);
-			D1Log.setTotal(count(fromDate, toDate, event, idFilter));
+			D1Log.setTotal(count(fromDate, toDate, event, pidFilter));
 			
-			String sql = buildLogAccessWhereClause("SELECT * FROM Log", fromDate, toDate, event, idFilter, " ORDER BY ROWID;");
+			String sql = buildLogAccessWhereClause("SELECT * FROM Log", fromDate, toDate, event, pidFilter, " ORDER BY ROWID;");
 			stmt = c.prepareStatement(sql);
 			
-			populateLogAccessWhereClause(fromDate, toDate, event, idFilter, stmt);
+			populateLogAccessWhereClause(fromDate, toDate, event, pidFilter, stmt);
 			
 			rs = stmt.executeQuery();
 

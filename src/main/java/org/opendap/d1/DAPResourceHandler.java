@@ -721,7 +721,7 @@ public class DAPResourceHandler {
 		Date fromDate = null;
 		Date toDate = null;
 		Event event = null;
-		String idFilter = null;
+		String pidFilter = null;
 		
 		int start = 0;
 		int count = DEFAULT_COUNT;
@@ -747,8 +747,8 @@ public class DAPResourceHandler {
 			event = Event.convert(params.get("event")[0]);
 		}
 
-		if (params.get("idFilter") != null) {
-			idFilter = params.get("idFilter")[0];
+		if (params.get("pidFilter") != null) {
+			pidFilter = params.get("pidFilter")[0];
 		}
 		
 		if (params.get("start") != null)
@@ -758,9 +758,9 @@ public class DAPResourceHandler {
 			count = new Integer(params.get("count")[0]).intValue();
 
 		log.debug("List log entries call, fromDate: " + fromDate + " toDate: " + toDate + " event: " + event 
-				+ " idFilter: " + idFilter + " start: " + start + " count: " + count);
+				+ " idFilter: " + pidFilter + " start: " + start + " count: " + count);
 
-		Log D1Log = DAPMNodeService.getInstance(request, db, logDb).getLogRecords(fromDate, toDate, event, idFilter,
+		Log D1Log = DAPMNodeService.getInstance(request, db, logDb).getLogRecords(fromDate, toDate, event, pidFilter,
 				start, count);
 
 		response.setStatus(200);
