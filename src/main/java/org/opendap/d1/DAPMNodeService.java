@@ -82,7 +82,6 @@ import org.dataone.service.types.v1.Subject;
 import org.dataone.service.types.v1.Synchronization;
 import org.dataone.service.types.v1.SystemMetadata;
 import org.dspace.foresite.ResourceMap;
-import org.opendap.d1.DatasetsDatabase.DAPD1DateParser;
 import org.opendap.d1.DatasetsDatabase.DAPDatabaseException;
 import org.opendap.d1.DatasetsDatabase.DatasetMetadata;
 import org.opendap.d1.DatasetsDatabase.DatasetsDatabase;
@@ -421,20 +420,20 @@ public class DAPMNodeService implements MNCore, MNRead {
 	public ObjectList listObjects(Date fromDate, Date toDate, ObjectFormatIdentifier format, Boolean ignored,
 			Integer start, Integer count) throws InvalidRequest, InvalidToken, NotAuthorized, NotImplemented, 
 			ServiceFailure {
-		
+		/*
 		// Take all the params and build up a 'where' clause that will select just what the 
 		// client wants.
 		String where = buildObjectsWhereClause(fromDate, toDate, format);
 		log.debug("In listObjects; where clause: " + where);
-		
+		*/
 		try {
 			// This returns just 'count' entries starting with zero-based entry 'start'
-			List<DatasetMetadata> dmv = db.getAllMetadata(where, start, count);
+			List<DatasetMetadata> dmv = db.getAllMetadata(fromDate, toDate, format, start, count);
 			
 			ObjectList ol = new ObjectList();
 			ol.setStart(start);
 			ol.setCount(dmv.size());
-			ol.setTotal(db.count(where));
+			ol.setTotal(db.count(fromDate, toDate, format));
 			for (DatasetMetadata dm: dmv) {
 				ObjectInfo oi = new ObjectInfo();
 				
@@ -467,43 +466,6 @@ public class DAPMNodeService implements MNCore, MNRead {
 		}
 	}
 
-	// FIXME Sql injection
-	/**
-	 * Build a SQL 'where clause' that can be used to select just what the client wants.
-	 * 
-	 * @param fromDate Only return stuff stating at this date
-	 * @param toDate ... and up to (but not including) this date
-	 * @param format ... and only this format
-	 * @param replicas but ignore this since we only store stuff for which we are an authoritative source
-	 * 
-	 * @return The WHERE clause a a string.
-	 */
-	private String buildObjectsWhereClause(Date fromDate, Date toDate, ObjectFormatIdentifier format) {
-		
-		String and = "";
-		String where = "";
-		if (fromDate != null) {
-			where += "dateAdded >= '" + DAPD1DateParser.DateToString(fromDate) + "'";
-			and = " and ";
-		}
-		
-		if (toDate != null) {
-			where += and + "dateAdded < '" + DAPD1DateParser.DateToString(toDate) + "'";
-			and = " and ";
-		}
-		
-		if (format != null) {
-			where += and + "format = '" + format.getValue() + "'";
-			// and = " and";
-		}
-
-		// Ignore replicas for now.
-		if (!where.isEmpty())
-			where = "where " + where;
-		
-		return where;
-	}
-	
 	/* (non-Javadoc)
 	 * @see org.dataone.service.mn.tier1.v1.MNRead#synchronizationFailed(org.dataone.service.exceptions.SynchronizationFailed)
 	 */
