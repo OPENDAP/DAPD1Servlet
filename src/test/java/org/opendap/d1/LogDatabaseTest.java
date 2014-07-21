@@ -160,7 +160,7 @@ public class LogDatabaseTest extends TestCase {
 		}
 
 		try {
-			Log logLines = db.getMatchingLogEntries("", 0, 4);
+			Log logLines = db.getMatchingLogEntries(null, null, null, null, 0, 4);
 			assertEquals("There should be 4 log lines", 4, logLines.sizeLogEntryList());
 			
 			LogEntry entry = logLines.getLogEntry(0);
@@ -202,7 +202,7 @@ public class LogDatabaseTest extends TestCase {
 		}
 
 		try {
-			Log logLines = db.getMatchingLogEntries("", 2, 4);
+			Log logLines = db.getMatchingLogEntries(null, null, null, null, 2, 4);
 			assertEquals("There should be 2 log lines", 2, logLines.sizeLogEntryList());
 			
 			LogEntry entry = logLines.getLogEntry(0);
@@ -238,7 +238,7 @@ public class LogDatabaseTest extends TestCase {
 		}
 
 		try {
-			Log logLines = db.getMatchingLogEntries("", 0, 2);
+			Log logLines = db.getMatchingLogEntries(null, null, null, null, 0, 2);
 			assertEquals("There should be 2 log lines", 2, logLines.sizeLogEntryList());
 			
 			LogEntry entry = logLines.getLogEntry(0);
@@ -276,7 +276,7 @@ public class LogDatabaseTest extends TestCase {
 		}
 
 		try {
-			Log logLines = db.getMatchingLogEntries("where PID like 'P%'", 0, 10);
+			Log logLines = db.getMatchingLogEntries(null, null, null, "P", 0, 10);
 			assertEquals("There should be 4 log lines", 4, logLines.sizeLogEntryList());
 		} catch (SQLException e) {
 			e.printStackTrace();

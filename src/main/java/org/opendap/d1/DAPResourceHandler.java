@@ -194,11 +194,6 @@ public class DAPResourceHandler {
 			// Set the Session member; null indicates no session info
 			// FIXME getSession();
 
-			// initialize the parameters
-			// TODO Move this to the parts of the API that actually have parameters?
-			//params = new Hashtable<String, String[]>();
-			//initParams();
-
 			try {
 				// get the resource
 				String resource = request.getPathInfo();

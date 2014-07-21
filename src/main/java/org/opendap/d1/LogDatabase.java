@@ -148,16 +148,78 @@ public class LogDatabase {
 	}
 	
 	/**
+	 * Build the text of a where clause that can be passed to prepareStatement and then
+	 * populated with values using populateLogAccessWhereClause().
+	 * @param baseSQL
+	 * @param fromDate
+	 * @param toDate
+	 * @param event
+	 * @param idFilter
+	 * @param suffix Stuff to put at the end of the SQL like ';' or 'ORDER BY...'
+	 * @return
+	 */
+	private String buildLogAccessWhereClause(String baseSQL, Date fromDate, Date toDate, Event event, String idFilter, String suffix) {
+		if (fromDate != null || toDate != null || event != null || idFilter != null) {
+			baseSQL += " where";
+			String and = "";
+			if (fromDate != null) {
+				baseSQL += " dateLogged >= ?";
+				and = " and";
+			}
+			if (toDate != null) {
+				baseSQL += and + " dateLogged < ?";
+				and = " and";
+			}
+			if (event != null) {
+				baseSQL += and + " event = ?";
+				and = " and";
+			}
+			if (idFilter != null) {
+				baseSQL += and + " PID like ?";
+			}
+		}
+		
+		return baseSQL + suffix;
+	}
+	
+	/**
+	 * This depends on the PreparedStatement being built using buildLogAccessWhereClause().
+	 * @param fromDate
+	 * @param toDate
+	 * @param event
+	 * @param idFilter
+	 * @param stmt
+	 * @throws SQLException
+	 */
+	private void populateLogAccessWhereClause(Date fromDate, Date toDate, Event event, String idFilter, PreparedStatement stmt)
+			throws SQLException {
+		int position = 1; // SQL uses ones-indexing
+		if (fromDate != null)
+			stmt.setString(position++, DAPD1DateParser.DateToString(fromDate));
+		if (toDate != null)
+			stmt.setString(position++, DAPD1DateParser.DateToString(toDate));
+		if (event != null)
+			stmt.setString(position++, event.toString());
+		if (idFilter != null)
+			stmt.setString(position, idFilter + "%");
+	}
+
+	/**
 	 * Total number of rows in the log, given the conditions in the 'where' clause.
 	 * @return The number of rows
 	 * @throws SQLException
 	 */
-	public int count(String where) throws SQLException {
+	public int count(Date fromDate, Date toDate, Event event, String idFilter) throws SQLException {
 		PreparedStatement stmt = null; //c.createStatement();
 		ResultSet rs = null;
 		try {
-			// FIXME SQL injection at 'where'.
-			stmt = c.prepareStatement("SELECT COUNT(*) FROM Log " + where + ";");
+			// tedious, yes, but better than an SQL injection attack!
+			String sql = buildLogAccessWhereClause("SELECT COUNT(*) FROM Log", fromDate, toDate, event, idFilter, ";");
+
+			stmt = c.prepareStatement(sql);
+			
+			populateLogAccessWhereClause(fromDate, toDate, event, idFilter, stmt);
+			
 			rs = stmt.executeQuery();
 			int rows = 0;
 			while (rs.next()) {
@@ -178,7 +240,7 @@ public class LogDatabase {
 	}
 
 	public int count() throws SQLException {
-		return count("");
+		return count(null, null, null, null);
 	}
 
 	/**
@@ -329,7 +391,8 @@ public class LogDatabase {
 	 * @throws SQLException
 	 * @throws DAPDatabaseException
 	 */
-	public Log getMatchingLogEntries(String where, int start, int count) throws SQLException, DAPDatabaseException {
+	public Log getMatchingLogEntries(Date fromDate, Date toDate, Event event, String idFilter, int start, int count) 
+			throws SQLException, DAPDatabaseException {
 		PreparedStatement stmt = null; //c.createStatement();
 		ResultSet rs = null;
 		
@@ -338,19 +401,14 @@ public class LogDatabase {
 			Log D1Log = new Log();
 			
 			D1Log.setStart(start);
-			/*
-			int rows = 0;
-			rs = stmt.executeQuery("SELECT COUNT(*) FROM Log" + where + ";");
-			while (rs.next()) {
-				rows = rs.getInt(1);
-			}
-			*/
-			D1Log.setTotal(count(where));
+			D1Log.setTotal(count(fromDate, toDate, event, idFilter));
 			
-			//String querySQL = "SELECT * FROM Log " + where + " ORDER BY ROWID;";
-			stmt = c.prepareStatement("SELECT * FROM Log " + where + " ORDER BY ROWID;");
+			String sql = buildLogAccessWhereClause("SELECT * FROM Log", fromDate, toDate, event, idFilter, " ORDER BY ROWID;");
+			stmt = c.prepareStatement(sql);
+			
+			populateLogAccessWhereClause(fromDate, toDate, event, idFilter, stmt);
+			
 			rs = stmt.executeQuery();
-			// rs.absolute(start+1); this does not work with SQLite
 
 			while (start-- > 0 && rs.next());
 
@@ -374,8 +432,8 @@ public class LogDatabase {
 				subject.setValue(rs.getString("subject"));
 				entry.setSubject(subject);
 				
-				Event event = Event.convert(rs.getString("event"));
-				entry.setEvent(event);
+				Event event1 = Event.convert(rs.getString("event"));
+				entry.setEvent(event1);
 				
 				entry.setDateLogged(DAPD1DateParser.StringToDate(rs.getString("dateLogged")));
 				

@@ -503,37 +503,7 @@ public class DAPMNodeService implements MNCore, MNRead {
 		
 		return where;
 	}
-
-	// FIXME Sql injection
-	private String buildLogEntriesWhereClause(Date fromDate, Date toDate, Event event, String idFilter) {
-		
-		String and = "";
-		String where = "";
-		if (fromDate != null) {
-			where += "dateLogged >= '" + DAPD1DateParser.DateToString(fromDate) + "'";
-			and = " and ";
-		}
-		
-		if (toDate != null) {
-			where += and + "dateLogged < '" + DAPD1DateParser.DateToString(toDate) + "'";
-			and = " and ";
-		}
-		
-		if (event != null) {
-			where += and + "event = '" + event.toString() + "'";
-			and = " and";
-		}
-
-		if (idFilter != null) {
-			where += and + "PID like '" + idFilter + "%'";			
-		}
-		
-		if (!where.isEmpty())
-			where = "where " + where;
-		
-		return where;
-	}
-
+	
 	/* (non-Javadoc)
 	 * @see org.dataone.service.mn.tier1.v1.MNRead#synchronizationFailed(org.dataone.service.exceptions.SynchronizationFailed)
 	 */
@@ -680,12 +650,12 @@ public class DAPMNodeService implements MNCore, MNRead {
 	// @Override
 	public Log getLogRecords(Date fromDate, Date toDate, Event event, String idFilter, Integer start, Integer count) 
 			throws InvalidRequest, InvalidToken, NotAuthorized, NotImplemented, ServiceFailure {
-
+		/*
 		String where = buildLogEntriesWhereClause(fromDate, toDate, event, idFilter);
 		log.debug("In getLogRecords; where clause: " + where);
-
+		*/
 		try {
-			return logDb.getMatchingLogEntries(where, start, count);
+			return logDb.getMatchingLogEntries(fromDate, toDate, event, idFilter, start, count);
 		} catch (Exception e) {
 			throw new ServiceFailure("1490", "Encountered an Exception while accessing the log: " + e.getMessage());
 		}
