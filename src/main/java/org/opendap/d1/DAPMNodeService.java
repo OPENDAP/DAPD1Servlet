@@ -494,7 +494,10 @@ public class DAPMNodeService implements MNCore, MNRead {
         }
  
         try {
-			logDb.addEntry(syncFailed.getPid(), request.getRemoteAddr(), request.getHeader("User-Agent"), principal, Event.SYNCHRONIZATION_FAILED);
+        	// Event.SYNCHRONIZATION_FAILED probably won't work for the same reason
+        	// that Event.READ doesn't (but I don't know why that is). jhrg 7/22/14
+			logDb.addEntry(syncFailed.getPid(), request.getRemoteAddr(), request.getHeader("User-Agent"), principal, 
+					"synchronization_failed"/*Event.SYNCHRONIZATION_FAILED*/);
 		} catch (SQLException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();

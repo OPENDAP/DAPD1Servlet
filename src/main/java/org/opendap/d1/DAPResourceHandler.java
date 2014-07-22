@@ -311,7 +311,10 @@ public class DAPResourceHandler {
 							sendListObjects(params);
 						}
 						else {
-							logDb.addEntry(extra, request.getRemoteAddr(), request.getHeader("user-agent"), Constants.SUBJECT_PUBLIC, Event.READ);
+							// In the line that follows, I cannot get Event.READ to work but I know
+							// that simple strings work.
+							logDb.addEntry(extra, request.getRemoteAddr(), request.getHeader("user-agent"), 
+									Constants.SUBJECT_PUBLIC, "read");
 							sendObject(extra);
 						}
 						status = true;
@@ -804,7 +807,7 @@ public class DAPResourceHandler {
 		if (params.get("count") != null)
 			count = new Integer(params.get("count")[0]).intValue();
 
-		log.debug("List log entries call, fromDate: " + fromDate + " toDate: " + toDate + " event: " + event 
+		log.debug("List log entries call, fromDate: " + fromDate + " toDate: " + toDate + " event: " + event
 				+ " idFilter: " + pidFilter + " start: " + start + " count: " + count);
 
 		Log D1Log = DAPMNodeService.getInstance(request, db, logDb).getLogRecords(fromDate, toDate, event, pidFilter,

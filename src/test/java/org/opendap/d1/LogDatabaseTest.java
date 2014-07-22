@@ -8,7 +8,6 @@ import java.sql.SQLException;
 
 import junit.framework.TestCase;
 
-import org.dataone.service.types.v1.Event;
 import org.dataone.service.types.v1.Log;
 import org.dataone.service.types.v1.LogEntry;
 import org.opendap.d1.DatasetsDatabase.DAPDatabaseException;
@@ -100,10 +99,10 @@ public class LogDatabaseTest extends TestCase {
 		}
 		
 		try {
-			db.addEntry("PID1", "128.0.0.1", "unit tests", "public", Event.READ);
-			db.addEntry("PID1", "128.0.0.1", "unit tests", "public", Event.SYNCHRONIZATION_FAILED);
-			db.addEntry("PID2", "128.0.0.1", "unit tests", "public", Event.READ);
-			db.addEntry("PID3", "128.0.0.1", "unit tests", "public", Event.READ);
+			db.addEntry("PID1", "128.0.0.1", "unit tests", "public", "read");
+			db.addEntry("PID1", "128.0.0.1", "unit tests", "public", "synchronization_failed");
+			db.addEntry("PID2", "128.0.0.1", "unit tests", "public", "read");
+			db.addEntry("PID3", "128.0.0.1", "unit tests", "public", "read");
 		} catch (SQLException e1) {
 			e1.printStackTrace();
 			fail("addEntry threw an exception");
