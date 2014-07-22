@@ -22,6 +22,8 @@
 
 package org.opendap.d1;
 
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -30,15 +32,19 @@ import java.sql.SQLException;
 import java.util.Date;
 import java.util.Enumeration;
 import java.util.Hashtable;
+import java.util.Map;
 
 import javax.servlet.ServletContext;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import javax.xml.parsers.ParserConfigurationException;
 
 import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.io.IOUtils;
 import org.dataone.client.auth.CertificateManager;
 import org.dataone.configuration.Settings;
+import org.dataone.mimemultipart.MultipartRequest;
+import org.dataone.mimemultipart.MultipartRequestResolver;
 import org.dataone.service.exceptions.BaseException;
 import org.dataone.service.exceptions.InsufficientResources;
 import org.dataone.service.exceptions.InvalidRequest;
@@ -47,6 +53,7 @@ import org.dataone.service.exceptions.NotAuthorized;
 import org.dataone.service.exceptions.NotFound;
 import org.dataone.service.exceptions.NotImplemented;
 import org.dataone.service.exceptions.ServiceFailure;
+import org.dataone.service.exceptions.SynchronizationFailed;
 import org.dataone.service.types.v1.Checksum;
 import org.dataone.service.types.v1.DescribeResponse;
 import org.dataone.service.types.v1.Event;
@@ -57,7 +64,9 @@ import org.dataone.service.types.v1.ObjectFormatIdentifier;
 import org.dataone.service.types.v1.ObjectList;
 import org.dataone.service.types.v1.Session;
 import org.dataone.service.types.v1.SystemMetadata;
+import org.dataone.service.util.Constants;
 import org.dataone.service.util.DateTimeMarshaller;
+import org.dataone.service.util.ExceptionHandler;
 import org.dataone.service.util.TypeMarshaller;
 import org.jibx.runtime.JiBXException;
 import org.opendap.d1.DatasetsDatabase.DAPD1DateParser;
@@ -65,6 +74,7 @@ import org.opendap.d1.DatasetsDatabase.DAPDatabaseException;
 import org.opendap.d1.DatasetsDatabase.DatasetsDatabase;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.xml.sax.SAXException;
 
 /**
  * @brief Handle GET, POST and HEAD requests for the DAP/D1 servlet.
@@ -134,6 +144,42 @@ public class DAPResourceHandler {
 	
 	// D1 certificate-based authentication
 	protected Session session;
+	
+	/* There are a number of ways to improve the performance of this
+	 * servlet. One is to pool the two database connections. The second
+	 * is to use a shared executor as illustrated below.  Explore these
+	 * if we get the opportunity to optimize the code. jhrg 7/22/14
+	 */
+	/*
+    // shared executor
+	private static ExecutorService executor = null;
+
+	static {
+		// use a shared executor service with nThreads == one less than available processors
+    	int availableProcessors = Runtime.getRuntime().availableProcessors();
+        int nThreads = availableProcessors * 1;
+        nThreads--;
+        nThreads = Math.max(1, nThreads);
+    	executor = Executors.newFixedThreadPool(nThreads);	
+	}
+	*/
+	
+	/*
+    // run it in a thread to avoid connection timeout
+    Runnable runner = new Runnable() {
+		@Override
+		public void run() {
+			try {
+		        MNodeService.getInstance(request).replicate(session, sysmeta, sourceNode);
+			} catch (Exception e) {
+				logMetacat.error("Error running replication: " + e.getMessage(), e);
+				throw new RuntimeException(e.getMessage(), e);
+			}
+		}
+	};
+	// submit the task, and that's it
+	executor.submit(runner);
+    */
 
 	/**
 	 * @brief Initializes new instance by setting servlet context,request and response.
@@ -265,7 +311,7 @@ public class DAPResourceHandler {
 							sendListObjects(params);
 						}
 						else {
-							logDb.addEntry(extra, request.getRemoteAddr(), request.getHeader("user-agent"), "read");
+							logDb.addEntry(extra, request.getRemoteAddr(), request.getHeader("user-agent"), Constants.SUBJECT_PUBLIC, Event.READ);
 							sendObject(extra);
 						}
 						status = true;
@@ -331,9 +377,10 @@ public class DAPResourceHandler {
 						}
 					}
 				} else if (resource.startsWith(RESOURCE_ERROR)) {
-					// TODO Handle the POST /error thing
+					log.debug("Processing resource '{}'", RESOURCE_ERROR);
+					SynchronizationFailed sf = collectSynchronizationFailed();
+					DAPMNodeService.getInstance(request, db, logDb).synchronizationFailed(sf);
 					status = true;
-					throw new NotImplemented("2160", "error is not yet supported");
 				} else {
 					throw new InvalidRequest("0000", "No resource matched for " + resource);
 				}
@@ -784,6 +831,53 @@ public class DAPResourceHandler {
 		TypeMarshaller.marshalTypeToOutputStream(c, response.getOutputStream());
 	}
 
+    /**
+     * Look for the org.opendap.d1.tempDir property and use its value or
+     * the default value of "/tmp" to build a File object.
+     * @return A File object for the temp directory
+     */
+    private static File getTempDirectory()
+    {
+    	String tempName = Settings.getConfiguration().getString("org.opendap.d1.tempDir");
+    	if (tempName == null || tempName.isEmpty())
+    		tempName = "/tmp";
+    	log.debug("Temp directory name: {}", tempName);
+        return  new File(tempName);
+    }
+    
+	private SynchronizationFailed collectSynchronizationFailed() throws ServiceFailure, InvalidRequest, 
+		ParserConfigurationException, SAXException, IOException {
+		
+		// Read the incoming data from its Mime Multipart encoding
+		// handle MMP inputs
+		File tmpDir = getTempDirectory();
+		MultipartRequestResolver mrr = new MultipartRequestResolver(tmpDir.getAbsolutePath(), 1000000000, 0);
+		MultipartRequest mr = null;
+		try {
+			mr = mrr.resolveMultipart(request);
+		} catch (Exception e) {
+			throw new ServiceFailure("2161", "Could not resolve multipart: " + e.getMessage());
+		}
+
+		Map<String, File> files = mr.getMultipartFiles();
+		if (files == null || files.keySet() == null) {
+			throw new InvalidRequest("2163", "must have multipart file with name 'message'");
+		}
+	
+		// Map<String, List<String>> multipartparams = mr.getMultipartParameters();
+	
+		File sfFile = files.get("message");
+		if (sfFile == null) {
+			throw new InvalidRequest("2163", "Missing the required file-part 'message' from the multipart request.");
+		}
+
+		InputStream sf = new FileInputStream(sfFile);
+	
+		SynchronizationFailed syncFailed = (SynchronizationFailed) ExceptionHandler.deserializeXml(sf, "Error deserializing exception");
+
+		return syncFailed;
+	}
+	
 	/**
 	 * Extract the path info following the string 'resource'.
 	 * 

@@ -303,11 +303,12 @@ public class LogDatabase {
 	 * @param PID
 	 * @param ipAddress
 	 * @param userAgent
+	 * @param subject User; for tier 1 this is always "public"
 	 * @param event
 	 * 
 	 * @throws SQLException
 	 */
-	public void addEntry(String PID, String ipAddress, String userAgent, String event) throws SQLException {
+	public void addEntry(String PID, String ipAddress, String userAgent, String subject, Event event) throws SQLException {
 		
 		//Statement stmt = c.createStatement();
 		PreparedStatement stmt = null;
@@ -319,13 +320,14 @@ public class LogDatabase {
 		// with each insertion operation.
 		
 		String now8601 = DAPD1DateParser.DateToString(new Date());
-		stmt = c.prepareStatement("INSERT INTO Log (PID,ipAddress,userAgent,subject,event,dateLogged,nodeId) VALUES (?, ?, ?, 'public', ?, ?, ?);");
+		stmt = c.prepareStatement("INSERT INTO Log (PID,ipAddress,userAgent,subject,event,dateLogged,nodeId) VALUES (?, ?, ?, ?, ?, ?, ?);");
 		stmt.setString(1, PID);
 		stmt.setString(2, ipAddress);
 		stmt.setString(3, userAgent);
-		stmt.setString(4, event);
-		stmt.setString(5, now8601);
-		stmt.setString(6, nodeId);
+		stmt.setString(4, subject);
+		stmt.setString(5, event.toString());
+		stmt.setString(6, now8601);
+		stmt.setString(7, nodeId);
 		
 		try {
 			stmt.executeUpdate();

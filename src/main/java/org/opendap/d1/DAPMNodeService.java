@@ -81,6 +81,7 @@ import org.dataone.service.types.v1.Session;
 import org.dataone.service.types.v1.Subject;
 import org.dataone.service.types.v1.Synchronization;
 import org.dataone.service.types.v1.SystemMetadata;
+import org.dataone.service.util.Constants;
 import org.dspace.foresite.ResourceMap;
 import org.opendap.d1.DatasetsDatabase.DAPDatabaseException;
 import org.opendap.d1.DatasetsDatabase.DatasetMetadata;
@@ -466,14 +467,40 @@ public class DAPMNodeService implements MNCore, MNRead {
 		}
 	}
 
-	/* (non-Javadoc)
+	/**
+	 * Log a Synchronization Failed error.
+	 * 
+	 * @param syncFailed The SynchronizationFailed object read from the body
+	 * of the POST request.
 	 * @see org.dataone.service.mn.tier1.v1.MNRead#synchronizationFailed(org.dataone.service.exceptions.SynchronizationFailed)
 	 */
 	// @Override
-	public boolean synchronizationFailed(SynchronizationFailed arg0)
+	public boolean synchronizationFailed(SynchronizationFailed syncFailed)
 			throws InvalidToken, NotAuthorized, NotImplemented, ServiceFailure {
-		// TODO Auto-generated method stub
-		return false;
+
+		if (syncFailed.getPid() == null) {
+            throw new ServiceFailure("2161", "The identifier cannot be null.");
+        }
+        
+        log.debug("Synchronization for the object identified by " + 
+        		syncFailed.getPid() + " failed from " + syncFailed.getNodeId() + 
+                " Logging the event as a 'syncFailed' event.");
+        
+        // This deosn't actually do much now, but maybe we experiment with authentication
+        // and then it'll come into play. jhrg 7/22/14
+        String principal = Constants.SUBJECT_PUBLIC;
+        if (session != null && session.getSubject() != null) {
+          principal = session.getSubject().getValue();
+        }
+ 
+        try {
+			logDb.addEntry(syncFailed.getPid(), request.getRemoteAddr(), request.getHeader("User-Agent"), principal, Event.SYNCHRONIZATION_FAILED);
+		} catch (SQLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
+        return true;
 	}
 
 	/**
