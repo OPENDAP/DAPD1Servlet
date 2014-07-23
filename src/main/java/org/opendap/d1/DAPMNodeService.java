@@ -32,10 +32,7 @@ import java.net.URL;
 import java.sql.SQLException;
 import java.util.Calendar;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Vector;
 
 import javax.servlet.http.HttpServletRequest;
 
@@ -45,7 +42,6 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.dataone.client.auth.CertificateManager;
 import org.dataone.configuration.Settings;
-import org.dataone.ore.ResourceMapFactory;
 import org.dataone.service.exceptions.BaseException;
 import org.dataone.service.exceptions.InsufficientResources;
 import org.dataone.service.exceptions.InvalidRequest;
@@ -82,7 +78,6 @@ import org.dataone.service.types.v1.Subject;
 import org.dataone.service.types.v1.Synchronization;
 import org.dataone.service.types.v1.SystemMetadata;
 import org.dataone.service.util.Constants;
-import org.dspace.foresite.ResourceMap;
 import org.opendap.d1.DatasetsDatabase.DAPDatabaseException;
 import org.opendap.d1.DatasetsDatabase.DatasetMetadata;
 import org.opendap.d1.DatasetsDatabase.DatasetsDatabase;
@@ -238,6 +233,9 @@ public class DAPMNodeService implements MNCore, MNRead {
 				in = response.getEntity().getContent();
 			}
 			else {
+				String ore_doc = db.getOREDoc(pid.getValue());
+				in = new ByteArrayInputStream(ore_doc.getBytes());
+				/*
 				List<String> ids = db.getIdentifiersForORE(pid.getValue());
 				
 				Identifier smoId = new Identifier();
@@ -254,6 +252,7 @@ public class DAPMNodeService implements MNCore, MNRead {
 				ResourceMap rm = ResourceMapFactory.getInstance().createResourceMap(pid, idMap);
 				String resourceMapXML = ResourceMapFactory.getInstance().serializeResourceMap(rm);
 				in = new ByteArrayInputStream(resourceMapXML.getBytes());
+				*/
 			}
 			
 			if (in == null)		
