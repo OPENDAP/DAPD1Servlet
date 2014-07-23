@@ -96,7 +96,7 @@ public class LogDatabase {
 				throw new DAPDatabaseException("The database used for logging could not be opened.");
 		}
 		
-		log.debug("Opened database successfully ({}).", dbName);
+		log.debug("Opened log database successfully ({}).", dbName);
 	}
 
 	/** 
@@ -105,7 +105,7 @@ public class LogDatabase {
 	 */
 	protected void finalize( ) throws Throwable {
 		c.close();
-		log.debug("Database connection closed ({}).", dbName);
+		log.debug("Log database connection closed ({}).", dbName);
 		super.finalize();
 	}
 	 
@@ -318,8 +318,6 @@ public class LogDatabase {
 		// NB: the 'EntryId' field is synonymous with SQLite's ROWID and is automatically incremented
 		// with each insertion operation.
 
-		log.debug("In addEntry, event is {}", event.toString());
-		
 		String now8601 = DAPD1DateParser.DateToString(new Date());
 		stmt = c.prepareStatement("INSERT INTO Log (PID,ipAddress,userAgent,subject,event,dateLogged,nodeId) VALUES (?, ?, ?, ?, ?, ?, ?);");
 		stmt.setString(1, PID);
@@ -435,9 +433,7 @@ public class LogDatabase {
 				subject.setValue(rs.getString("subject"));
 				entry.setSubject(subject);
 				
-				log.debug("In getMatchingLogEntries, event: {}", rs.getString("event"));
 				Event event1 = Event.convert(rs.getString("event"));
-				log.debug("In getMatchingLogEntries, event object: {}", event1);
 				entry.setEvent(event1);
 				
 				entry.setDateLogged(DAPD1DateParser.StringToDate(rs.getString("dateLogged")));

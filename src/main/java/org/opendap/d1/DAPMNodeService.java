@@ -77,6 +77,7 @@ import org.dataone.service.types.v1.Session;
 import org.dataone.service.types.v1.Subject;
 import org.dataone.service.types.v1.Synchronization;
 import org.dataone.service.types.v1.SystemMetadata;
+import org.dataone.service.types.v1.util.ChecksumUtil;
 import org.dataone.service.util.Constants;
 import org.opendap.d1.DatasetsDatabase.DAPDatabaseException;
 import org.opendap.d1.DatasetsDatabase.DatasetMetadata;
@@ -235,6 +236,12 @@ public class DAPMNodeService implements MNCore, MNRead {
 			else {
 				String ore_doc = db.getOREDoc(pid.getValue());
 				in = new ByteArrayInputStream(ore_doc.getBytes());
+				
+				log.debug("ORE doc: $${}$$", ore_doc);
+				log.debug("ORE doc checksum: {}", ChecksumUtil.checksum(in, "SHA-1").getValue());
+				
+				in.reset();
+				
 				/*
 				List<String> ids = db.getIdentifiersForORE(pid.getValue());
 				
@@ -420,12 +427,7 @@ public class DAPMNodeService implements MNCore, MNRead {
 	public ObjectList listObjects(Date fromDate, Date toDate, ObjectFormatIdentifier format, Boolean ignored,
 			Integer start, Integer count) throws InvalidRequest, InvalidToken, NotAuthorized, NotImplemented, 
 			ServiceFailure {
-		/*
-		// Take all the params and build up a 'where' clause that will select just what the 
-		// client wants.
-		String where = buildObjectsWhereClause(fromDate, toDate, format);
-		log.debug("In listObjects; where clause: " + where);
-		*/
+
 		try {
 			// This returns just 'count' entries starting with zero-based entry 'start'
 			List<DatasetMetadata> dmv = db.getAllMetadata(fromDate, toDate, format, start, count);
@@ -641,10 +643,7 @@ public class DAPMNodeService implements MNCore, MNRead {
 	// @Override
 	public Log getLogRecords(Date fromDate, Date toDate, Event event, String pidFilter, Integer start, Integer count) 
 			throws InvalidRequest, InvalidToken, NotAuthorized, NotImplemented, ServiceFailure {
-		/*
-		String where = buildLogEntriesWhereClause(fromDate, toDate, event, idFilter);
-		log.debug("In getLogRecords; where clause: " + where);
-		*/
+
 		try {
 			return logDb.getMatchingLogEntries(fromDate, toDate, event, pidFilter, start, count);
 		} catch (Exception e) {

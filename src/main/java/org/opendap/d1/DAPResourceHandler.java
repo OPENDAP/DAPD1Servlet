@@ -202,7 +202,7 @@ public class DAPResourceHandler {
 		}
 
 		String dbName = Settings.getConfiguration().getString("org.opendap.d1.DatasetsDatabaseName");
-		log.debug("in object (dbName: {})", dbName);
+		log.debug("DAPResourceHandler, Datasets Database Name: {}", dbName);
 
 		try {
 			db = new DatasetsDatabase(dbName);
@@ -216,7 +216,7 @@ public class DAPResourceHandler {
 		
 		String logDbName = Settings.getConfiguration().getString("org.opendap.d1.LogDatabaseName");
 		String nodeId = Settings.getConfiguration().getString("org.opendap.d1.nodeId");
-		log.debug("in object (Log database name: {}; nodeId: {})", logDbName, nodeId);
+		log.debug("DAPResourceHandler, Log database name: {}; nodeId: {}", logDbName, nodeId);
 		try {
 			logDb = new LogDatabase(logDbName, nodeId);
 			if (!logDb.isValid())
