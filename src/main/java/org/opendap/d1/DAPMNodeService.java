@@ -376,7 +376,7 @@ public class DAPMNodeService implements MNCore, MNRead {
 			submitterRule.addPermission(Permission.CHANGE_PERMISSION);
 			
 			Subject pub = new Subject();
-			pub.setValue(Settings.getConfiguration().getString("org.opendap.d1.subject")); // "public:"
+			pub.setValue(Settings.getConfiguration().getString("org.opendap.d1.subject")); // "public"
 			AccessRule publicRule = new AccessRule();
 			publicRule.addSubject(pub);
 			publicRule.addPermission(Permission.READ);
@@ -404,10 +404,6 @@ public class DAPMNodeService implements MNCore, MNRead {
 			nr.setValue(nodeId);	// read from the properties above
 			sm.setOriginMemberNode(nr);
 			sm.setAuthoritativeMemberNode(nr);
-			
-			// There is a Replica object in the D1 classes and a matching field for
-			// the SystemMetadata object/response. I'm ignoring it because replication
-			// is not allowed by default for this servlet. 6/4/14
 			
 			return sm;
 		} catch (DAPDatabaseException e) {

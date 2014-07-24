@@ -1,10 +1,23 @@
 
+
 This is a prototype DAP/DataONE servlet. It provides a way to access data
 using the DataONE protocol when those data are served using DAP. Any DAP
 server can be used, so long as it can package results in NetCDF files and
 can return ISO 19115 documents for those data results.
 
 Installation
+
+This project and its companion use Maven. 
+
+Goto ttp://maven.apache.org/download.cgi, getn the binary and install
+it. On a Mac OSX machine, put the apache-maven-<ver> directory in
+/Applications. Then add
+
+export M2_HOME=/Applications/apache-maven-3.1.1
+export PATH=$PATH:$M2_HOME/bin
+
+to .bashrc or the equivalent. mvn --version should work and return the
+expected info.
 
 Configuration
 
