@@ -405,7 +405,22 @@ public class DAPMNodeService implements MNCore, MNRead {
 			sm.setOriginMemberNode(nr);
 			sm.setAuthoritativeMemberNode(nr);
 			
+			// Grab the Obsoletes/ObsoletedBy information
+			String obsoletes = db.getObsoletes(pid.getValue());
+			String obsoletedBy = db.getObsoletedBy(pid.getValue());
+			if (obsoletes != null) {
+				Identifier previous = new Identifier();
+				previous.setValue(obsoletes);
+				sm.setObsoletes(previous);
+			}
+			if (obsoletedBy != null) {
+				Identifier replacement = new Identifier();
+				replacement.setValue(obsoletedBy);
+				sm.setObsoletes(replacement);
+			}
+			
 			return sm;
+			
 		} catch (DAPDatabaseException e) {
 			throw new ServiceFailure("1090", e.getMessage());
 		} catch (SQLException e) {
