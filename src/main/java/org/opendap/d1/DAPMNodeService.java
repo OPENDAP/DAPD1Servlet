@@ -215,7 +215,8 @@ public class DAPMNodeService implements MNCore, MNRead {
 		// access the DAP server and return the streamed object via the InputStream.
 		// if the PID references an ORE document, we must build the ORE doc and 
 		// return it.
-		
+	    log.debug("... in DAPMNodeService, get()...");
+
 		if (!db.isInMetadata(pid.getValue()))
 			throw new NotFound("1020", "The PID '" + pid.getValue() + "' was not found on this server.");
 		
