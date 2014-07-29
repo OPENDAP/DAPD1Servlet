@@ -512,8 +512,8 @@ public class DAPMNodeService implements MNCore, MNRead {
 			logDb.addEntry(syncFailed.getPid(), request.getRemoteAddr(), request.getHeader("User-Agent"), principal, 
 					"synchronization_failed"/*Event.SYNCHRONIZATION_FAILED*/);
 		} catch (SQLException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+            log.error("MNodeService.getCapabilities(): property not found: {}", e.getMessage());
+			throw new ServiceFailure("2161", e.getMessage());
 		}
 
         return true;
