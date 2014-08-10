@@ -21,7 +21,7 @@
     <appender-ref ref="FILE" />
   </logger>
   
-  <root level="debug">
+  <root level="ERROR">
     <appender-ref ref="STDOUT" />
   </root>
 </configuration>
