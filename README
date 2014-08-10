@@ -1,13 +1,16 @@
 
+Updated 8/10/14
 
 This is a prototype DAP/DataONE servlet. It provides a way to access data
 using the DataONE protocol when those data are served using DAP. Any DAP
 server can be used, so long as it can package results in NetCDF files and
-can return ISO 19115 documents for those data results.
+can return ISO 19115 documents for those data results. 
 
-Installation
+The project builds a war file that is used with Apache Tomcat 7.
 
-This project and its companion use Maven. 
+Building the code
+
+This project and its companion use Maven. Build it using 'mvn package'.
 
 Goto ttp://maven.apache.org/download.cgi, getn the binary and install
 it. On a Mac OSX machine, put the apache-maven-<ver> directory in
@@ -21,51 +24,9 @@ expected info.
 
 Configuration
 
-Two files need to be edited to configure the server.
-
-Apache Tomcat's configuration file is CATALINA_HOME/conf/catalina.properties.
-In Tomcat's 'catalina.properties' add:
-
-    org.apache.tomcat.util.buf.UDecoder.ALLOW_ENCODED_SLASH=true
-    org.apache.catalina.connector.CoyoteAdapter.ALLOW_BACKSLASH=true
-
-The servlet's configuration file is CATALINA_HOME/webapps/DAPD1Servlet
-/WEB-INF/classes/opendap.properties.
-
-In the servlet's 'opendap.properties' edit these lines:
-
-# The 'base URL' for this web service will be 'serviceName' + 'nodeType'.
-# ie, .../DAPD1Servelet/d1/mn/. Other stuff like 'node' gets appended to
-# that to make a request. In this string, just edit the host and port. Don't
-# include a trailing slash.
-org.opendap.d1.serviceName = http://localhost:8080/DAPD1Servlet/d1
-
-# This is the name of the SQLite database that holds information about 
-# PIDs and the DAP URLs and other stuff they map too.
-org.opendap.d1.DatabaseName = /Users/jimg/src/dataone/DatasetsDatabase/test.db
-
-# nodeName is used as a label
-org.opendap.d1.nodeName = test.opendap.org
-
-# nodeId must never change; this will have a cert and must match the regex
-# urn:node:[\w_]{2,23} That is, 2 to 23 character long strings of '_' and 
-# characters that can make up a word. Dots (.) do not match \w
-org.opendap.d1.nodeId = urn:node:test_opendap_org
-
-# X.509 Distinguished Name; can be used with an X509 cert; can be repeated
-# ...Except that these are read-only, public nodes, so don't change this
-# (although the code doesn't check auth credentials yet... 6/4/14)
-org.opendap.d1.subject = public:
-
-# Contact point for the servlet. This must be a RFC2253-compliant string
-# see http://www.ietf.org/rfc/rfc2253.txt
-org.opendap.d1.contactSubject = CN=James Gallagher,O=OPeNDAP,C=US
-
-org.opendap.d1.nodeDescription = This node contains test data.
-
-Testing
-
-http://localhost:6044/DAPD1Servlet/d1/mn/v1/monitor/ping
-
-
+See the online docs at http://opendap.github.io/DAPD1Servlet for help on
+configuring the server. Note that you'll need to get its companion project
+DAPD1DatasetsDatabase (https://opendap.github.com/DAPD1DatasetsDatabase)
+to build/edit/customize the datasets this server accesses. The documention
+covers this in detail.
  
